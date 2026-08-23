@@ -187,12 +187,12 @@ Following requirements §33. Progress log lives here.
 | 7  | Products + Categories screens                 | ✅      | shadcn primitives added: `Dialog`, `Sheet`, `Switch`, `Select`, `Label`, `Textarea`, `EmptyState`, `ConfirmDialog`. Categories page: list w/ up/down reorder, create/edit dialog, guarded delete (blocks if products reference it). Products page: filterable grid (search + category), inline availability switch, create/edit dialog w/ price+unit+category+description+Tamil name, destructive delete confirm. Both use `useCollection` so writes reflect instantly + across tabs. |
 | 8  | Customer ordering page `/order/[slug]`        | ✅      | `src/app/order/[storeSlug]/` — hero header, sticky category chip nav, product cards with inline +/- controls, honors `store.showTamilNames` and `store.showUnavailable`. Cart persists in `sessionStorage` scoped by slug (`useCart` hook) so refresh keeps cart, closing tab discards it. Sticky cart bar shows count + subtotal. |
 | 9  | Cart + simulated checkout + confirmation      | ✅      | `CartSheet` (right-side Radix sheet): line items with per-line +/- and remove, name/phone/note fields, live subtotal/total, min-order guard, store-closed guard. `paymentService.charge()` (SimulatedPaymentService) returns PAID after 400 ms. On success, `OrderRepo.create` snapshots items via `buildOrderItem`, assigns `FC-1001+` number, then routes to `/order/[slug]/success/[orderId]` which shows the confirmation with order number, items, totals, and status badge. |
-| 10 | Order state machine + createOrder service     | ☐       |       |
-| 11 | Live Order Board (Kanban)                     | ☐       |       |
-| 12 | Order History                                 | ☐       |       |
-| 13 | Dashboard metrics wired to real data          | ☐       |       |
-| 14 | Reports + CSV export                          | ☐       |       |
-| 15 | QR code modal + print poster                  | ☐       |       |
+| 10 | Order state machine + createOrder service     | ✅      | `src/lib/domain/order-status.ts` — allowed-transition table + `canTransition`/`nextValidStatuses`/`isTerminal`. `src/lib/services/order-service.ts` — `createOrder({ storeId, customer, lines }, deps)` validates store/open/min-order/products, calls `PaymentService.charge`, then persists via `OrderRepo.create` (repo assigns id, orderNumber `FC-1001+`, timestamps). Typed `OrderValidationError` codes: STORE_NOT_FOUND, STORE_CLOSED, EMPTY_CART, PRODUCT_NOT_FOUND, PRODUCT_UNAVAILABLE, CROSS_STORE_PRODUCT, BELOW_MIN_ORDER, PAYMENT_FAILED. Repo enforces transitions and throws `InvalidTransitionError`; sets `completedAt` on entry to COMPLETED. 13-case Vitest suite in `order-service.test.ts` covers every branch. |
+| 11 | Live Order Board (Kanban)                     | ✅      | `src/app/(owner)/orders/live/page.tsx` — 4-column responsive Kanban (NEW → ACCEPTED → PREPARING → READY) driven by `useCollection('orders', …)`, cross-tab reactive. Live "N minutes ago" via `useTicker(30s)` + `formatElapsed`. Tap a card → `OrderDetailSheet` (right sheet) surfaces only valid next statuses computed from `nextValidStatuses`; each action goes through `repos.orders.transition` which re-validates via `canTransition`. Toasts on success/failure via `sonner`. Cancel action guarded by `ConfirmDialog`. Empty-state when queue is clear. |
+| 12 | Order History                                 | ✅      | `src/app/(owner)/orders/history/page.tsx` — desktop table + mobile list showing COMPLETED + CANCELLED orders. Search across order number / customer name / phone; date range toggles (Today / 7d / 30d / All) map to `OrderRepo.list({ from })`. Reuses `OrderStatusBadge` and `OrderDetailSheet` (read-only for terminal states). Header shows filtered order count + total revenue badge. |
+| 13 | Dashboard metrics wired to real data          | ✅      | `src/lib/domain/dashboard-metrics.ts` — pure aggregators `computeTodayMetrics` (ordersToday / completedToday / activeOrders / revenueToday), `computeProductMetrics` (total/available/unavailable/lowStock/outOfStock), `computeTopItems` (aggregate COMPLETED order items → sort by qty). 9-case Vitest suite covers empty inputs, timezone-safe day boundary, active-vs-completed classification, low/out-of-stock rules, limit. Dashboard page rewritten as a client component that calls `useCollection('orders', …)` + `useCollection('products', …)`, memoizes metrics, and renders TODAY + MENU stat strips, Live Orders preview (uses `OrderStatusBadge` + `formatElapsed`), and Top Items sparkbars. Header greeting uses the actual store name; QR / Live Orders / Add Product quick actions in the header. |
+| 14 | Reports + CSV export                          | ⏳      | Reports summary + top items already live at `/reports` (revenue / orders / avg ticket / cancel rate over Today/7d/30d/All). CSV export not yet wired. |
+| 15 | QR code modal + print poster                  | ⏳      | `/qr` route already generates a scannable PNG QR from `window.location.origin + /order/{slug}` via `qrcode` library, plus Copy Link / Download PNG / Open. Print-poster route still to build. |
 | 16 | Settings + Printers placeholder               | ☐       |       |
 | 17 | Responsive / a11y / empty-loading-error pass  | ☐       |       |
 | 18 | Acceptance test walkthrough (§32)             | ☐       |       |
@@ -223,9 +223,79 @@ Following requirements §33. Progress log lives here.
 
 ---
 
-## 10. How to resume next session
+## 10. Running the app locally
+
+**Prerequisites**
+- Node.js 20.x (managed via `nvm` — no sudo required).
+- `npm` 10.x (bundled with Node 20).
+
+**One-time setup**
+
+```bash
+cd /home/workspace/CartSas
+nvm use 20            # ensure Node 20 is active in this shell
+npm install           # installs all deps into ./node_modules
+```
+
+**Start the dev web server**
+
+```bash
+cd /home/workspace/CartSas
+npm run dev
+```
+
+- Serves on http://localhost:3000 (Next.js 14, hot reload enabled).
+- Owner surfaces:
+  - Dashboard: http://localhost:3000/dashboard
+  - Products: http://localhost:3000/products
+  - Categories: http://localhost:3000/categories
+  - Live Orders: http://localhost:3000/orders/live
+  - Order History: http://localhost:3000/orders/history
+  - Reports: http://localhost:3000/reports
+  - QR Code: http://localhost:3000/qr
+  - Printers: http://localhost:3000/printers
+  - Settings: http://localhost:3000/settings
+- Customer menu (Anna Street Food seed): http://localhost:3000/order/anna-street-food
+
+**Verify the end-to-end flow** (matches Requirements §3):
+
+1. Open `/order/anna-street-food` in one tab (or scan the QR from `/qr` on a phone on the same LAN).
+2. Add items → open cart → **Pay Now** → confirmation with `FC-1001+` number.
+3. Open `/orders/live` in another tab — the new order appears under **NEW** (cross-tab `storage` events keep it live).
+4. Advance NEW → ACCEPTED → PREPARING → READY → COMPLETED via the detail sheet.
+5. `/orders/history` shows the completed order; `/dashboard` `Today` metrics reflect the revenue + counts.
+
+**Other useful scripts**
+
+| Command                 | Purpose                                              |
+| ----------------------- | ---------------------------------------------------- |
+| `npm run dev`           | Start Next.js dev server on `:3000`.                 |
+| `npm run build`         | Production build. Verifies types + static generation. |
+| `npm run start`         | Serve the production build (requires `build` first). |
+| `npm run lint`          | ESLint (next-lint) on the whole workspace.           |
+| `npm test`              | Run the Vitest suite once (currently 40 tests).      |
+| `npm run test:watch`    | Vitest in watch mode while iterating on domain code. |
+
+**Resetting the demo data**
+The app persists everything in `localStorage` under `cartsas:v1:*` keys.
+To wipe orders and re-seed the demo store, open DevTools → Application → Local Storage → clear the origin and reload; `seedIfNeeded` will re-populate the store + categories + products (existing orders are cleared but the counter for `FC-XXXX` resets too).
+
+**Port already in use?**
+
+```bash
+# 1) find the offender
+lsof -i :3000
+# 2) kill any stuck Next dev process
+pkill -f "next dev"
+# 3) or start on another port
+PORT=3001 npm run dev
+```
+
+---
+
+## 11. How to resume next session
 
 1. Read this file top-to-bottom.
 2. Check the progress table in §7 — pick up at the first non-✅ row.
 3. Verify workspace layout still matches §4; if drift, reconcile before coding.
-4. Run `npm run dev` from `/home/workspace/CartSas` after step 1 is complete.
+4. Run `npm run dev` from `/home/workspace/CartSas` (see §10 for the full checklist).

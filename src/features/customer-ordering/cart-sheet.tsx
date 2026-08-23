@@ -21,6 +21,7 @@ import type { Product, Store } from "@/lib/domain/types";
 import { computeOrderTotals } from "@/lib/domain/totals";
 import { useRepos } from "@/lib/repositories/repo-provider";
 import { paymentService } from "@/lib/services/payment-service";
+import { createOrder, OrderValidationError } from "@/lib/services/order-service";
 import type { UseCartResult } from "@/lib/hooks/use-cart";
 
 interface CartSheetProps {
@@ -72,26 +73,30 @@ export function CartSheet({
     setPlacing(true);
     setError(null);
     try {
-      const payment = await paymentService.charge(total);
-      const order = await repos.orders.create({
-        storeId: store.id,
-        customer: {
-          name: name.trim() || undefined,
-          phone: phone.trim() || undefined,
-          note: note.trim() || undefined,
+      const order = await createOrder(
+        {
+          storeId: store.id,
+          customer: { name, phone, note },
+          lines: cart.lines,
         },
-        items: orderItems,
-        subtotal,
-        total,
-        paymentMethod: payment.method,
-        paymentStatus: payment.status,
-        status: "NEW",
-      });
+        {
+          stores: repos.stores,
+          products: repos.products,
+          orders: repos.orders,
+          payment: paymentService,
+        },
+      );
       cart.clear();
       onOpenChange(false);
       router.push(`/order/${store.slug}/success/${order.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      const msg =
+        err instanceof OrderValidationError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Something went wrong.";
+      setError(msg);
       setPlacing(false);
     }
   }
