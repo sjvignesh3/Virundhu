@@ -21,8 +21,13 @@ datasource db {
   // during Phase 1 prototyping but is not persistent on managed hosts like
   // Render (ephemeral disk) and does not support real Decimal(10,2) columns.
   // For local dev, run PostgreSQL via Docker (see Docs/Deployment.md).
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  //
+  // Supabase note: DATABASE_URL must use port 5432 (session pooler or direct).
+  // Port 6543 (transaction pooler) does NOT support prepared statements used
+  // by prisma migrate deploy. DIRECT_URL bypasses the pooler for migrations.
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
 }
 
 // ---------- Users & Auth ----------
