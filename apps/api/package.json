@@ -3,6 +3,8 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
+    "predev": "npm run build --workspace=@cartsas/shared",
+    "prebuild": "npm run build --workspace=@cartsas/shared",
     "build": "nest build",
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",

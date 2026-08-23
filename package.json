@@ -7,9 +7,10 @@
     "packages/*"
   ],
   "scripts": {
+    "postinstall": "npm run build:shared",
     "dev:web": "npm run dev --workspace=@cartsas/web",
     "dev:api": "npm run start:dev --workspace=@cartsas/api",
-    "dev": "npm-run-all -p dev:api dev:web",
+    "dev": "npm-run-all -s build:shared -p dev:api dev:web",
     "build": "npm-run-all -s build:shared build:api build:web",
     "build:shared": "npm run build --workspace=@cartsas/shared",
     "build:api": "npm run build --workspace=@cartsas/api",
