@@ -1,307 +1,492 @@
-# DevDoc — Food Cart SaaS (Phase 1)
+# DevDoc — Cart SaaS (Phase 1 + Phase 2)
 
-> Living memory of the current implementation. Updated as work progresses.
-> Requirements source of truth: `Docs/Requirements`.
+> Living memory of the current implementation. Updated every session.
+> Requirements source of truth: `Docs/RequirementPrompts/`.
 
 ---
 
-## 1. Snapshot (current session)
+## 1. Snapshot (current state)
 
 **Project root:** `/home/workspace/CartSas`
 
-**Workspace state at start of this session:**
+**Phase 2 is COMPLETE. Version control (`.gitignore`) is configured.** The product is end-to-end usable with real data.
 
 ```
-CartSas/
-├── .git/               (empty repo)
-├── .zcode/             (IDE config, all empty)
-└── Docs/
-    ├── Requirements                  (full Phase 1 spec — 27 KB)
-    └── RefScreenshots/               (8 PNGs — legacy meat-shop UI, reference only)
+CartSas/                        ← npm workspace root
+├── apps/
+│   ├── api/                    ← NestJS backend (port 4000)
+│   │   ├── prisma/
+│   │   │   ├── schema.prisma   ← 12 models, SQLite dev / Postgres prod
+│   │   │   ├── migrations/     ← init migration
+│   │   │   ├── seed.ts         ← idempotent demo seed
+│   │   │   └── dev.db          ← SQLite file (git-ignored)
+│   │   └── src/
+│   │       ├── modules/        ← auth, stores, categories, products, orders,
+│   │       │                      payments, public, dashboard, reports,
+│   │       │                      printers, settings
+│   │       ├── common/         ← errors, filters, mappers, pipes
+│   │       └── prisma/         ← PrismaService
+│   └── web/                    ← Next.js 14 frontend (port 3000)
+│       └── src/
+│           ├── app/            ← routes: (owner)/, login/, order/[slug]/
+│           ├── components/     ← ui primitives, owner shell, auth-guard
+│           ├── features/       ← customer-ordering, orders, products, qr
+│           └── lib/
+│               ├── api/        ← apiFetch, adapters, auth-api, session
+│               ├── domain/     ← types, state-machine, totals, csv, metrics
+│               ├── hooks/      ← useCart, useDemoStore
+│               ├── repositories/
+│               │   ├── api/    ← ApiStoreRepo, ApiCategoryRepo, …
+│               │   └── local/  ← Phase-1 localStorage repos
+│               └── services/   ← order-service, payment-service
+└── packages/
+    └── shared/                 ← Zod schemas + DTOs (frontend + backend share)
 ```
-
-**No application code exists yet.** No `package.json`, no `src/`, nothing scaffolded.
 
 **Runtime:**
-- Platform: Linux 6.1.112
-- Node.js: being installed via NodeSource 20.x (was missing at session start)
-- Package manager target: `npm` (bundled with Node 20)
-- `sudo` available (passwordless)
+- Node.js 20.x, npm 10.x
+- SQLite (dev) via Prisma
+- PostgreSQL-ready schema (one-line datasource swap)
 
 ---
 
 ## 2. Product summary
 
-Building a **mobile-first Food Cart ordering & operations SaaS** — Phase 1 (frontend-first MVP).
+**A mobile-first Food Cart SaaS** for Tamil street-food owners. Two experiences share one codebase:
 
-Two experiences share one codebase:
+| Actor | Experience |
+|-------|-----------|
+| **Owner** | Logs in → Dashboard → Live Kanban board → order management → history, reports, QR, settings |
+| **Customer** | Scans QR → `/order/[slug]` → menu → cart → Simulated Pay → confirmation |
 
-- **Owner / Operator** (dashboard, products, categories, live orders, order history, reports, QR, printers, settings)
-- **Customer** (`/order/[storeSlug]` — mobile-first digital menu → cart → simulated checkout → order confirmation)
-
-Core end-to-end flow that MUST work in Phase 1:
+### Primary E2E flow (Phase 2 verified)
 
 ```
-QR → /order/anna-street-food → menu → cart → Pay Now (simulated)
-   → order created (status NEW)
-   → Owner Live Board: NEW → ACCEPTED → PREPARING → READY → COMPLETED
-   → Order History + Dashboard metrics updated
+Customer scans QR (another device)
+  → /order/anna-street-food  (menu from database)
+  → adds items to cart
+  → Pay Now (simulated)
+  → NestJS: validates + creates Order + Customer + Payment + StatusHistory (single transaction)
+  → Owner Live Board polls /api/stores/:id/orders/active every 5s
+  → Owner: Accept → Preparing → Ready → Complete
+  → Order history, dashboard, reports all update from DB
 ```
-
-**Explicitly out of scope in Phase 1:** Razorpay, WhatsApp, real auth, PostgreSQL, WebSockets, notifications, printer hardware.
 
 ---
 
-## 3. Tech stack (locked)
+## 3. Tech stack
 
-| Layer            | Choice                                   |
-| ---------------- | ---------------------------------------- |
-| Framework        | Next.js 14 (App Router) + React 18 + TS  |
-| Styling          | Tailwind CSS                             |
-| UI primitives    | shadcn/ui + Radix UI                     |
-| Icons            | lucide-react                             |
-| Client state     | Zustand                                  |
-| Server state     | TanStack Query                           |
-| Forms            | React Hook Form                          |
-| Validation       | Zod                                      |
-| QR generation    | `qrcode.react` (client) — TBD            |
-| Persistence P1   | Repository pattern → localStorage (SSR-safe wrapper) |
+| Layer | Choice |
+|-------|--------|
+| Frontend framework | Next.js 14 (App Router) + React 18 + TypeScript |
+| Styling | Tailwind CSS + shadcn/ui + Radix UI |
+| Icons | lucide-react |
+| Frontend state | TanStack Query (server state via `useCollection`) + Zustand |
+| Forms | React Hook Form + Zod |
+| QR generation | `qrcode` library |
+| Backend framework | NestJS 10 + TypeScript |
+| ORM | Prisma 5 |
+| Database | SQLite (dev) / PostgreSQL (prod) |
+| Validation | Zod schemas in `@cartsas/shared` (shared) + class-validator (NestJS) |
+| Auth | JWT (passport-jwt + @nestjs/jwt), bcryptjs |
+| API docs | Swagger/OpenAPI via @nestjs/swagger |
+| Testing (api) | Jest + ts-jest |
+| Testing (web) | Vitest |
+| Monorepo | npm workspaces |
 
 ---
 
-## 4. Target architecture
+## 4. Database schema (Prisma)
+
+All models are in `apps/api/prisma/schema.prisma`.
+
+| Model | Key fields | Notes |
+|-------|-----------|-------|
+| `User` | id, email (unique), passwordHash, isActive | Auth identity |
+| `Store` | id, slug (unique), name, status | Multi-tenant root |
+| `StoreUser` | storeId, userId, role | Many-to-many, roles: OWNER/MANAGER/STAFF |
+| `StoreSettings` | storeId (unique), showTamilNames, acceptOrders, minimumOrderValue | One per store |
+| `Category` | storeId, name, displayOrder, isActive | Unique(storeId, name) |
+| `Product` | storeId, categoryId, price (Decimal), isAvailable, stockQuantity | Tenant-isolated |
+| `Customer` | storeId, name?, phone? | Public user, no login |
+| `Order` | storeId, customerId?, orderNumber, status, totalAmount | Unique(storeId, orderNumber) |
+| `OrderItem` | orderId, productId?, productName (snapshot), unitPrice (snapshot) | Historical freeze |
+| `OrderStatusHistory` | orderId, fromStatus, toStatus, changedByUserId | Full audit trail |
+| `Payment` | orderId, provider, status, amount | SIMULATED now; Razorpay-ready |
+| `OrderSequence` | storeId (PK), nextValue | Monotonic FC-XXXX counter |
+| `Printer` | storeId, name, type, isActive | Config only; no hardware |
+
+**Key constraints:**
+- Money fields: `Decimal(10,2)` — never floating point
+- Soft-delete: products with order history → `isAvailable=false` not deleted
+- Categories with products → blocked delete (throws `CATEGORY_HAS_PRODUCTS`)
+- Historical order items snapshot productName + unitPrice at creation time
+
+---
+
+## 5. Backend architecture
+
+### Module graph
 
 ```
-src/
-  app/                          Next.js routes
-    (owner)/
-      dashboard/
-      products/
-      categories/
-      orders/                  (history)
-      live-orders/
-      reports/
-      printers/
-      settings/
-      layout.tsx               (sidebar shell)
-    order/[storeSlug]/         Customer ordering page
-    layout.tsx
-    globals.css
-  components/
-    ui/                        shadcn primitives
-    layout/                    Sidebar, TopBar, MobileNav
-    common/                    EmptyState, LoadingSkeleton, ErrorState
-  features/
-    customer-ordering/         Menu, ProductCard, StickyCartBar, CartSheet, Confirmation
-    products/                  ProductList, ProductForm
-    categories/                CategoryList, CategoryForm
-    orders/                    OrderCard, OrderDetails, OrderHistoryTable
-    live-orders/               KanbanBoard, KanbanColumn, LiveOrderCard
-    dashboard/                 MetricCard, TodayStats
-    reports/                   ReportFilters, ReportTable, ExportCsv
-    qr/                        StoreQRCode, QRModal, PrintPoster
-    settings/                  BusinessForm, OrderingForm, MenuForm, BrandingForm
-  domain/
-    product/                   types + calc helpers
-    category/                  types
-    order/                     types + state machine (canTransition, computeTotals)
-    store/                     types
-    payment/                   simulated payment abstraction
-  repositories/
-    interfaces/                *Repository.ts
-    local/                     localStorage impls + seed
-    index.ts                   DI wiring
-  services/                    productService, orderService, storeService
-  stores/                      zustand: cartStore, uiStore
-  hooks/                       useProducts, useOrders, useCart, ...
-  lib/                         cn, formatCurrency, id, csv, storage
-  i18n/                        en.ts, ta.ts, useT hook
-  types/                       shared cross-cutting types
+AppModule
+  ├── ConfigModule (global)
+  ├── PrismaModule (global singleton)
+  ├── AuthModule       → /api/auth
+  ├── StoresModule     → /api/stores/:storeId
+  ├── CategoriesModule → /api/stores/:storeId/categories
+  ├── ProductsModule   → /api/stores/:storeId/products
+  ├── OrdersModule     → /api/stores/:storeId/orders
+  ├── PaymentsModule   → (internal, injected into OrdersModule)
+  ├── PublicModule     → /api/public
+  ├── DashboardModule  → /api/stores/:storeId/dashboard
+  ├── ReportsModule    → /api/stores/:storeId/reports
+  ├── PrintersModule   → /api/stores/:storeId/printers
+  └── SettingsModule   → (thin placeholder, served by StoresModule)
 ```
 
-**Golden rule:** UI → hooks → services → repositories → (Phase 1) local. Never bypass.
+### Auth guard chain
 
----
-
-## 5. Domain models (v1)
-
-```ts
-type OrderStatus = 'NEW' | 'ACCEPTED' | 'PREPARING' | 'READY' | 'COMPLETED' | 'CANCELLED';
-type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED';
-type PaymentMethod = 'SIMULATED' | 'CASH' | 'UPI';
-type Unit = 'plate' | 'piece' | 'cup' | 'glass' | 'bottle' | 'kg' | 'g';
-
-interface Store   { id; slug; name; tamilName?; description?; phone?; address?; status: 'OPEN'|'CLOSED';
-                    minOrderValue?; prepTimeMinutes?; language: 'en'|'ta';
-                    showTamilNames: boolean; showUnavailable: boolean; logo?; accent?; }
-interface Category{ id; storeId; name; tamilName?; sortOrder; }
-interface Product { id; storeId; categoryId; name; tamilName?; description?; tamilDescription?;
-                    price; unit: Unit; image?; available: boolean; lowStockThreshold?; stock?; }
-interface OrderItem { productId; name; tamilName?; unit; unitPrice; quantity; lineTotal; }
-interface Customer { name?; phone?; note?; }
-interface Order   { id; orderNumber; storeId; customer: Customer; items: OrderItem[];
-                    subtotal; total; paymentMethod: PaymentMethod; paymentStatus: PaymentStatus;
-                    status: OrderStatus; createdAt; updatedAt; completedAt?; }
+```
+JwtAuthGuard → verifies Bearer token → populates req.user (AuthUser)
+StoreMembershipGuard → checks StoreUser(storeId, userId) exists → blocks cross-tenant access
 ```
 
-**Pure functions (domain layer, no React):**
-- `computeOrderTotals(items)` → `{ subtotal, total }`
-- `canTransition(current, next)` → boolean
-- `nextValidStatuses(current)` → `OrderStatus[]`
-- `generateOrderNumber(seq)` → `FC-1024`
+### Order creation transaction (§54)
+
+```typescript
+prisma.$transaction(async (tx) => {
+  1. Verify store OPEN + acceptOrders
+  2. Load products (per-tx — implicit row lock on Postgres)
+  3. Validate availability, cross-store, stock
+  4. Recompute totals from DB prices (never trust client)
+  5. Upsert customer by phone
+  6. Increment OrderSequence → orderNumber FC-XXXX
+  7. Create Order + OrderItems
+  8. Create OrderStatusHistory (NEW)
+  9. Decrement stock; auto-mark unavailable if stock → 0
+  10. Call PaymentsService.chargeAndRecord → creates Payment record
+  11. Update Order.paymentStatus = PAID
+})
+```
+
+### Payment provider interface
+
+```typescript
+interface PaymentProvider {
+  charge(amount: number, orderId: string): Promise<PaymentResult>;
+}
+// Phase 2: SimulatedProvider (always PAID, instant)
+// Phase 3: RazorpayProvider (slot-in — PaymentsService wires it via DI)
+```
+
+### Order state machine
+
+Valid transitions only (enforced on backend; reflected on frontend for UX):
+
+```
+NEW → ACCEPTED → PREPARING → READY → COMPLETED
+ ↓               ↓           ↓
+CANCELLED     CANCELLED   CANCELLED
+```
+
+Both `canTransition` and `nextValidStatuses` live in `@cartsas/shared/transitions.ts` so frontend and backend share identical logic.
 
 ---
 
-## 6. Seed data — "Anna Street Food"
+## 6. Frontend API layer
 
-Slug: `anna-street-food`. Categories: Chicken, Snacks, Rice & Meals, Drinks, Egg.
+### Repository pattern (unchanged from Phase 1 interface)
 
-| Product                | Tamil                          | Price | Unit  | Category      |
-| ---------------------- | ------------------------------ | ----- | ----- | ------------- |
-| Chicken Kothu Parotta  | சிக்கன் கொத்து பரோட்டா        | 120   | plate | Chicken       |
-| Egg Kothu Parotta      | முட்டை கொத்து பரோட்டா          | 90    | plate | Egg           |
-| Chicken 65             | சிக்கன் 65                     | 140   | plate | Chicken       |
-| Chicken Rice           | சிக்கன் சாதம்                   | 110   | plate | Rice & Meals  |
-| Egg Rice               | முட்டை சாதம்                    | 80    | plate | Rice & Meals  |
-| Parotta                | பரோட்டா                        | 20    | piece | Snacks        |
-| Omelette               | ஆம்லெட்                        | 40    | plate | Egg           |
-| Lemon Soda             | லெமன் சோடா                     | 40    | glass | Drinks        |
-| Fresh Lime             | எலுமிச்சை ஜூஸ்                  | 30    | glass | Drinks        |
-| Tea                    | டீ                             | 15    | cup   | Drinks        |
+```typescript
+// Phase 1 (local mode):  UI → repos → LocalOrderRepo → localStorage
+// Phase 2 (api mode):    UI → repos → ApiOrderRepo   → NestJS → Prisma
+```
+
+The interface is identical; `NEXT_PUBLIC_REPO_BACKEND=api` selects the backend at build time.
+
+### Key files
+
+| File | Purpose |
+|------|---------|
+| `lib/api/client.ts` | `apiFetch<T>()` — attaches Bearer token, deserializes JSON, auto-logout on 401 |
+| `lib/api/adapters.ts` | DTO → frontend domain converters (isolates shape differences) |
+| `lib/api/auth-api.ts` | `apiLogin`, `apiLogout`, `apiCurrentSession` |
+| `lib/api/session.ts` | JWT session persisted in `localStorage` key `cartsas:v2:auth` |
+| `lib/api/dashboard-api.ts` | `fetchDashboardMetrics`, `fetchReportsSummary` (API-side aggregation) |
+| `lib/repositories/api/` | `ApiStoreRepo`, `ApiCategoryRepo`, `ApiProductRepo`, `ApiOrderRepo` |
+| `lib/repositories/factory.ts` | `getRepos()` — backend selector + singleton cache |
+| `lib/repositories/repo-provider.tsx` | `RepoProvider`, `useRepos()`, `useCollection()` — React context + polling |
+| `components/auth/auth-guard.tsx` | Redirects to `/login` if no session (API mode only) |
+
+### `useCollection` hook
+
+The central data-fetching primitive. Used by every page:
+
+```typescript
+const { data, loading, error, refresh } = useCollection(
+  "orders",                          // cache key (CollectionName)
+  async (repos) => repos.orders.list(storeId, filter),
+  { poll: true, pollMs: 5_000 }      // 5s polling for live board
+);
+```
+
+- **Local mode**: subscribes to the `EventBus` for same-tab writes + `storage` event for cross-tab.
+- **API mode**: opts into polling; manual refresh after mutations.
 
 ---
 
-## 7. Implementation plan & progress
+## 7. Implementation progress
 
-Following requirements §33. Progress log lives here.
+### Phase 1 (completed previous session)
 
-| #  | Step                                          | Status  | Notes |
-| -- | --------------------------------------------- | ------- | ----- |
-| 0  | Install Node.js + tooling                     | ✅      | Node 20.20.2 + npm 10.8.2 via nvm (user-space, no sudo). |
-| 1  | Scaffold Next.js + Tailwind + shadcn setup    | ✅      | Next 14.2 App Router, TS, Tailwind, ESLint, `src/`, `@/*` alias. Placeholder home renders at `/`. |
-| 2  | Design system tokens + Tailwind theme         | ✅      | HSL CSS vars (light+dark), warm accent `#f97316` family, Inter + Noto Sans Tamil via `next/font/google`, container + radius tokens, shadcn-compatible palette. |
-| 3  | Shared UI primitives (`Button`, `Card`, `Input`, `Badge`, `cn`, `formatCurrency`) | ✅      | shadcn-compatible components in `src/components/ui/`, `cn()` + `formatCurrency()` in `src/lib/utils.ts`. Home page refactored to consume them — end-to-end render verified. |
-| 4  | Owner app shell (sidebar + mobile nav)        | ✅      | Route group `(owner)` with collapsible desktop sidebar, mobile drawer + bottom tab bar. All 9 owner routes scaffolded with per-route `loading.tsx`, top-of-page `RouteProgress` bar, idle-time prefetch of primary routes, and hover-intent prefetch on secondary nav. `useSelectedLayoutSegment`-driven active state avoids nav re-renders on in-page state changes. Dark-mode toggle via `next-themes`. |
-| 5  | Domain models + repository interfaces         | ✅      | `src/lib/domain/` — `types.ts` (Store/Category/Product/Order + drafts), `order-status.ts` (state-machine transitions, `canTransition`, `nextValidStatuses`), `totals.ts` (`computeOrderTotals`, `buildOrderItem` w/ price snapshot), `order-number.ts` (`FC-1024` format, seq starts at 1001), `ids.ts` (`newId()` via `crypto.randomUUID` w/ fallback). `src/lib/repositories/` — async `StoreRepo`/`CategoryRepo`/`ProductRepo`/`OrderRepo` interfaces designed as a storage-agnostic seam. |
-| 6  | localStorage repositories + seed              | ✅      | `src/lib/storage/` (SSR-safe JSON wrapper, `cartsas:v1:*` keys, tiny pub/sub with `storage`-event cross-tab sync). `src/lib/repositories/local/` — four `Local*Repo` classes; `LocalOrderRepo.transition` enforces `canTransition` and throws `InvalidTransitionError`. `src/lib/seed/anna-street-food.ts` — idempotent seed guarded by `seeded` flag; 1 store, 5 categories, 10 Tamil products. `RepoProvider` mounted in owner + customer layouts; `useRepos()` + `useCollection()` give reactive reads. |
-| 7  | Products + Categories screens                 | ✅      | shadcn primitives added: `Dialog`, `Sheet`, `Switch`, `Select`, `Label`, `Textarea`, `EmptyState`, `ConfirmDialog`. Categories page: list w/ up/down reorder, create/edit dialog, guarded delete (blocks if products reference it). Products page: filterable grid (search + category), inline availability switch, create/edit dialog w/ price+unit+category+description+Tamil name, destructive delete confirm. Both use `useCollection` so writes reflect instantly + across tabs. |
-| 8  | Customer ordering page `/order/[slug]`        | ✅      | `src/app/order/[storeSlug]/` — hero header, sticky category chip nav, product cards with inline +/- controls, honors `store.showTamilNames` and `store.showUnavailable`. Cart persists in `sessionStorage` scoped by slug (`useCart` hook) so refresh keeps cart, closing tab discards it. Sticky cart bar shows count + subtotal. |
-| 9  | Cart + simulated checkout + confirmation      | ✅      | `CartSheet` (right-side Radix sheet): line items with per-line +/- and remove, name/phone/note fields, live subtotal/total, min-order guard, store-closed guard. `paymentService.charge()` (SimulatedPaymentService) returns PAID after 400 ms. On success, `OrderRepo.create` snapshots items via `buildOrderItem`, assigns `FC-1001+` number, then routes to `/order/[slug]/success/[orderId]` which shows the confirmation with order number, items, totals, and status badge. |
-| 10 | Order state machine + createOrder service     | ✅      | `src/lib/domain/order-status.ts` — allowed-transition table + `canTransition`/`nextValidStatuses`/`isTerminal`. `src/lib/services/order-service.ts` — `createOrder({ storeId, customer, lines }, deps)` validates store/open/min-order/products, calls `PaymentService.charge`, then persists via `OrderRepo.create` (repo assigns id, orderNumber `FC-1001+`, timestamps). Typed `OrderValidationError` codes: STORE_NOT_FOUND, STORE_CLOSED, EMPTY_CART, PRODUCT_NOT_FOUND, PRODUCT_UNAVAILABLE, CROSS_STORE_PRODUCT, BELOW_MIN_ORDER, PAYMENT_FAILED. Repo enforces transitions and throws `InvalidTransitionError`; sets `completedAt` on entry to COMPLETED. 13-case Vitest suite in `order-service.test.ts` covers every branch. |
-| 11 | Live Order Board (Kanban)                     | ✅      | `src/app/(owner)/orders/live/page.tsx` — 4-column responsive Kanban (NEW → ACCEPTED → PREPARING → READY) driven by `useCollection('orders', …)`, cross-tab reactive. Live "N minutes ago" via `useTicker(30s)` + `formatElapsed`. Tap a card → `OrderDetailSheet` (right sheet) surfaces only valid next statuses computed from `nextValidStatuses`; each action goes through `repos.orders.transition` which re-validates via `canTransition`. Toasts on success/failure via `sonner`. Cancel action guarded by `ConfirmDialog`. Empty-state when queue is clear. |
-| 12 | Order History                                 | ✅      | `src/app/(owner)/orders/history/page.tsx` — desktop table + mobile list showing COMPLETED + CANCELLED orders. Search across order number / customer name / phone; date range toggles (Today / 7d / 30d / All) map to `OrderRepo.list({ from })`. Reuses `OrderStatusBadge` and `OrderDetailSheet` (read-only for terminal states). Header shows filtered order count + total revenue badge. |
-| 13 | Dashboard metrics wired to real data          | ✅      | `src/lib/domain/dashboard-metrics.ts` — pure aggregators `computeTodayMetrics` (ordersToday / completedToday / activeOrders / revenueToday), `computeProductMetrics` (total/available/unavailable/lowStock/outOfStock), `computeTopItems` (aggregate COMPLETED order items → sort by qty). 9-case Vitest suite covers empty inputs, timezone-safe day boundary, active-vs-completed classification, low/out-of-stock rules, limit. Dashboard page rewritten as a client component that calls `useCollection('orders', …)` + `useCollection('products', …)`, memoizes metrics, and renders TODAY + MENU stat strips, Live Orders preview (uses `OrderStatusBadge` + `formatElapsed`), and Top Items sparkbars. Header greeting uses the actual store name; QR / Live Orders / Add Product quick actions in the header. |
-| 14 | Reports + CSV export                          | ✅      | `src/lib/domain/csv.ts` — pure `ordersToCsv` with RFC 4180 quoting, UTF-8 BOM (so Excel opens ₹ / Tamil correctly), CRLF row separator, `\; `-joined item summary, `csvFilename('orders', range)` helper. 14-case Vitest suite in `csv.test.ts` covers empty list, safe/unsafe cells, embedded quotes/newlines/commas, multi-item summarisation, missing customer fields, item quantity totals. Reports page action bar now has `Export CSV` — builds a Blob from the same order list the on-screen cards render, `URL.createObjectURL` + hidden `<a>` triggers download; disabled + toast when window has 0 orders. |
-| 15 | QR code modal + print poster                  | ✅      | Extracted QR generation into `src/features/qr/use-qr.ts` (`useQr` hook + `buildOrderUrl` pure helper) so the same logic serves the `/qr` page, the poster, and any future surface (Requirements §15 reusability rule). New `/qr/poster` route renders `QrPoster` (A5 layout: cart name + Tamil name, "Scan to Order" headline, high-EC QR at 1024 px, human-readable URL, phone). Scoped print CSS neutralises the owner shell + main-padding + toolbar, sets `@page A5 margin 8mm`. `/qr` page gained a "Print poster" button that links to it. |
-| 16 | Settings + Printers                           | ✅      | Settings page (`/settings`) covers Profile / Contact / Ordering / Display — cart name + Tamil name, slug (auto-lowercased + dash-normalised), description, phone/address, `status OPEN/CLOSED` toggle, min-order & prep-time, `showTamilNames` and `showUnavailable` toggles (last one was missing until this step). Dirty-tracking `Saved` / `Unsaved changes` badges + toasts. Printers page (`/printers`) lists last 10 orders and prints receipts via a hidden `<Receipt>` component + `window.print()` with `body * { visibility: hidden }` isolation, 80 mm thermal-friendly layout. |
-| 17 | Responsive / a11y / empty-loading-error pass  | ✅      | Verified: `focus-visible:ring-2 ring-ring` on Button/Input/Textarea/Switch/Select/Dialog/Sheet/Badge; every icon button has `aria-label` (audited 34 sites); `role="alert"` on form errors; `<img>` tags carry descriptive `alt`. Added `src/app/(owner)/error.tsx` (segment error boundary with `reset()` + "Back to dashboard"), `src/app/order/[storeSlug]/error.tsx` (customer-friendly retry), `src/app/not-found.tsx` (global 404 with home/dashboard CTAs). Loading skeletons already existed in `src/app/(owner)/loading.tsx` + `/order/[slug]/loading.tsx`. Mobile: sidebar hides at `md:`, `MobileTabBar` renders on small screens, cards stack via responsive grid utilities across all owner routes. |
-| 18 | Acceptance test walkthrough (§32)             | ✅      | `Docs/AcceptanceTest.md` — 28-step scenario table cross-linked to the implementation step that satisfies each row, environment setup, seed-reset instructions, and a Vitest coverage snapshot (54 tests across 6 suites: order-number, totals, order-status, order-service, dashboard-metrics, csv). Ran the walkthrough end-to-end against `npm run dev`; all 12 owner + customer routes serve 200; TypeScript clean; production build produces 15 routes (12 owner + `/qr/poster` + customer menu + customer success). Regression protocol lists the five modules whose changes trigger a full re-run. |
+| # | Step | Status |
+|---|------|--------|
+| 1–18 | All Phase 1 steps | ✅ Done (see AcceptanceTest.md) |
 
-**Legend:** ☐ not started · ⏳ in progress · ✅ done · ⚠️ blocked
+### Phase 2 (this session)
+
+| # | Milestone | Status | Notes |
+|---|-----------|--------|-------|
+| P2-1 | Monorepo restructure | ✅ | `apps/`, `packages/`, npm workspaces |
+| P2-2 | `packages/shared` — Zod schemas, DTOs, transitions | ✅ | Source of truth for both apps |
+| P2-3 | Prisma schema — 12 models, migrations, seed | ✅ | SQLite dev; Postgres-compatible |
+| P2-4 | NestJS scaffold — main.ts, app.module, Swagger | ✅ | Port 4000, `/api/docs` |
+| P2-5 | Common infra — ApiException, GlobalFilter, ZodPipe, Decimal mappers | ✅ | Consistent error envelope |
+| P2-6 | Auth module — login, JWT strategy, JwtAuthGuard, StoreMembershipGuard | ✅ | Tenant isolation enforced |
+| P2-7 | Stores + Categories + Products modules (CRUD) | ✅ | Tenant-safe; soft-delete strategy |
+| P2-8 | Orders module — createFromPublic (transaction), state machine, status history | ✅ | Concurrency-safe stock; server-authoritative totals |
+| P2-9 | Payments module — SimulatedProvider + chargeAndRecord | ✅ | Razorpay-ready interface |
+| P2-10 | Public module — unauthenticated customer endpoints | ✅ | No auth; minimal PII exposure |
+| P2-11 | Dashboard module — DB-aggregated metrics | ✅ | Counts + revenue from Prisma |
+| P2-12 | Reports module — summary + CSV export | ✅ | Date range filtering |
+| P2-13 | Printers module — CRUD | ✅ | Config only; no hardware |
+| P2-14 | Frontend API client + adapters | ✅ | apiFetch, DTO→domain converters |
+| P2-15 | `api/*` repositories — ApiStoreRepo, ApiCategoryRepo, ApiProductRepo, ApiOrderRepo | ✅ | Drop-in for `local/*` |
+| P2-16 | AuthGuard + login page + session management | ✅ | Redirects, JWT in localStorage |
+| P2-17 | Dashboard page — API metrics endpoint (not client-computed) | ✅ | Fetches `/dashboard`; falls back to local computation in demo mode |
+| P2-18 | Reports page — API summary endpoint | ✅ | Server-side aggregation; CSV client-side |
+| P2-19 | Live board — 5s polling, transition actions | ✅ | useCollection({ poll: true, pollMs: 5000 }) |
+| P2-20 | Customer flow — CartSheet → ApiOrderRepo.checkout → API | ✅ | Public endpoint, no auth |
+| P2-21 | Success page — public order lookup by orderNumber | ✅ | Cross-device viewable |
+| P2-22 | Settings page → API (store + settings PATCH) | ✅ | Persists across devices |
+| P2-23 | Owner topbar logout | ✅ | Clears session, redirects to /login |
+| P2-24 | Backend tests (Jest) | ✅ | 36 tests across 6 suites |
+| P2-25 | Web tests (Vitest) | ✅ | 54 tests across 6 suites |
+| P2-26 | TypeScript clean — both apps | ✅ | `tsc --noEmit` passes both |
+| P2-27 | README.md — Phase 2 setup & API reference | ✅ | Full local-setup guide |
+| P2-28 | DevDoc.md — Phase 2 update | ✅ | This file |
+
+**Total tests: 90 (36 API + 54 web)**
 
 ---
 
 ## 8. Key decisions & conventions
 
-- **App Router route groups**: `(owner)` for owner surfaces so URLs are clean (`/dashboard`, not `/owner/dashboard`). Customer route stays top-level: `/order/[storeSlug]`.
-- **Persistence**: Single `localStorage` namespace `cartsas.v1.*`. All writes go through `lib/storage.ts` with SSR-safe guards + JSON codec + version key for future migrations.
-- **IDs**: `crypto.randomUUID()` for entities; order numbers use a monotonically increasing counter stored per-store (`FC-1000+`).
-- **Cross-tab sync**: subscribe to `storage` events so an order created in a customer tab appears in the owner tab without hard reload.
-- **Currency**: `₹` via `Intl.NumberFormat('en-IN', { style:'currency', currency:'INR', maximumFractionDigits:0 })`.
-- **i18n**: minimal handcrafted dictionary + `useT()` hook now; can swap to `next-intl` later.
-- **QR**: `qrcode.react` renders SVG; download converts SVG → PNG via canvas; print poster is a plain print-stylesheet route.
-- **Payment abstraction**: `PaymentService.charge(order)` returns `{ status, method }`. Phase 1 impl returns `{ status:'PAID', method:'SIMULATED' }` synchronously.
+### General
+
+- **Monorepo:** npm workspaces — `apps/api`, `apps/web`, `packages/shared`.
+- **Shared package:** `@cartsas/shared` — Zod schemas + DTOs + transitions. Never duplicated.
+- **Money:** `Decimal(10,2)` in DB; `decimalToNumber()` converts at the API boundary to `number`.
+- **IDs:** UUID everywhere. Order numbers are human-friendly `FC-XXXX` (monotonic per store).
+- **Soft delete:** Products with order history → `isAvailable=false`. Categories with products → blocked.
+
+### Backend
+
+- **Single transaction for order creation:** `prisma.$transaction` covers customer upsert, order, items, history, stock decrement, and payment.
+- **No N+1:** Dashboard uses `Promise.all` over separate aggregate queries. Live board returns `include: { items, customer }` in one query.
+- **Tenant isolation:** Every owner endpoint extracts `storeId` from the URL param; `StoreMembershipGuard` verifies the JWT user is a member of that store.
+- **Public API:** No auth. Returns only `PublicStoreDTO` (settings embedded inline, no internal IDs).
+
+### Frontend
+
+- **Repository seam preserved:** All UI code calls `useRepos()` → never `fetch()` directly.
+- **Polling over WebSockets (Phase 2):** `useCollection(..., { poll: true, pollMs: 5000 })` — replaceable later with SSE/WebSocket without touching UI.
+- **Adapters isolate DTO shape:** `lib/api/adapters.ts` converts `OrderDTO` → `Order` (frontend domain). UI never knows the API shape changed.
+- **API mode vs local mode:** Controlled by `NEXT_PUBLIC_REPO_BACKEND`. `local` keeps Phase-1 demo alive; `api` is the production default.
 
 ---
 
-## 9. Open questions / to revisit
+## 9. API error codes
 
-- Multi-store support: seed exactly one store in Phase 1; keep `storeId` on every entity so multi-tenant lands without schema change.
-- Auth: not in Phase 1 — but keep an `AuthContext` stub returning the demo owner so guards exist for Phase 2.
-- Image handling: use `next/image` with local `/public` placeholder + gradient fallback tile.
-- **Security debt**: `npm audit` reports 5 high CVEs on Next 14.2.33 (DoS in Image Optimizer / Server Components / rewrites — all self-host-only) and transitive `postcss` / `glob` in devDeps. Non-blocking for local Phase 1 MVP; **must bump to Next 14.2 latest patch or Next 15 with a compat sweep before any production deploy**. Rejected `npm audit fix --force` because it moves to Next 15 major.
+All errors return:
+```json
+{ "statusCode": 4xx, "code": "SNAKE_CASE_CODE", "message": "Human description" }
+```
+
+| Code | Status | When |
+|------|--------|------|
+| `NOT_FOUND` | 404 | Resource doesn't exist |
+| `INVALID_CREDENTIALS` | 401 | Wrong email/password |
+| `UNAUTHORIZED` | 401 | Missing/expired token |
+| `FORBIDDEN` | 403 | User is not a member of the store |
+| `STORE_CLOSED` | 409 | Store.status = CLOSED at order time |
+| `STORE_NOT_ACCEPTING` | 409 | Settings.acceptOrders = false |
+| `EMPTY_CART` | 400 | Order submitted with zero items |
+| `PRODUCT_UNAVAILABLE` | 409 | Product.isAvailable = false |
+| `PRODUCT_OUT_OF_STOCK` | 409 | stockQuantity < requested quantity |
+| `CROSS_STORE_PRODUCT` | 400 | Product belongs to a different store |
+| `BELOW_MIN_ORDER` | 400 | Total < store minimumOrderValue |
+| `INVALID_TRANSITION` | 409 | Invalid order status change |
+| `CATEGORY_HAS_PRODUCTS` | 409 | Attempt to delete category with products |
+| `INTERNAL_ERROR` | 500 | Unhandled server error |
 
 ---
 
-## 10. Running the app locally
+## 10. Seed data
 
-**Prerequisites**
-- Node.js 20.x installed (verify: `node -v`).
-- `npm` 10.x (bundled with Node 20; verify: `npm -v`).
+`apps/api/prisma/seed.ts` — idempotent (safe to re-run).
 
-**One-time setup**
+| Entity | What's created |
+|--------|---------------|
+| User | `owner@anna.test` / `owner123` (bcrypt hashed) |
+| Store | `anna-street-food` — "Anna Street Food", status OPEN |
+| StoreUser | owner → OWNER role |
+| StoreSettings | showTamilNames=true, minOrder=₹0, prepTime=15min |
+| Categories | Chicken, Snacks, Rice & Meals, Drinks, Egg (5 total) |
+| Products | 10 products with Tamil names and prices |
+| OrderSequence | nextValue=1 (FC-1001 on first order) |
 
-```powershell
-cd d:\Tools\HotSpot\FoodCart
-npm install           # installs all deps into .\node_modules
+---
+
+## 11. Running locally
+
+```bash
+# Install all workspaces
+cd CartSas && npm install
+
+# Configure env
+cp apps/api/.env.example apps/api/.env       # Edit JWT_SECRET
+cp apps/web/.env.example apps/web/.env.local  # Edit NEXT_PUBLIC_API_URL if needed
+
+# Database
+npm run db:migrate   # creates SQLite dev.db
+npm run db:seed      # seeds Anna Street Food demo data
+
+# Start everything
+npm run dev          # API on :4000 | Web on :3000
 ```
 
-**Start the dev web server**
+**Owner login:** `owner@anna.test` / `owner123`
+**Customer page:** http://localhost:3000/order/anna-street-food
+**Swagger docs:** http://localhost:4000/api/docs
 
-```powershell
-cd d:\Tools\HotSpot\FoodCart
-npm run dev
+---
+
+## 12. Test coverage summary
+
+### Backend (Jest) — 36 tests, 6 suites
+
+| Suite | Tests | What's covered |
+|-------|-------|----------------|
+| `order-status.service.spec.ts` | 6 | State machine transitions (valid + invalid) |
+| `orders.service.spec.ts` | 6 | Order creation: happy path, empty cart, store closed, cross-store product, unavailable product, insufficient stock, below-minimum |
+| `categories.service.spec.ts` | 6 | List, create, update 404, remove 404, blocked delete, clean delete |
+| `products.service.spec.ts` | 8 | List, create with tenant-safe category, cross-store reject, 404, soft/hard delete, availability, Decimal→number mapping |
+| `auth.service.spec.ts` | 5 | Login happy path, wrong password, unknown user, inactive user, no passwordHash leak |
+| `public.service.spec.ts` | 5 | Store by slug, 404 slug, products (available only, include unavailable), categories |
+
+### Frontend (Vitest) — 54 tests, 6 suites
+
+| Suite | Tests | What's covered |
+|-------|-------|----------------|
+| `order-number.test.ts` | 3 | FC-XXXX format, sequential numbering |
+| `totals.test.ts` | 6 | Subtotal, total, zero cart, rounding |
+| `order-status.test.ts` | 9 | All valid transitions, all invalid transitions |
+| `order-service.test.ts` | 13 | Full order service: validation codes, payment failure, success |
+| `dashboard-metrics.test.ts` | 9 | Today metrics, product metrics, top items |
+| `csv.test.ts` | 14 | RFC 4180 escaping, BOM, multi-item rows, edge cases |
+
+---
+
+## 13. Open items / next phases
+
+### Phase 3 — Razorpay integration
+
+1. Create `RazorpayProvider implements PaymentProvider` in `apps/api/src/modules/payments/providers/`.
+2. Wire via `PaymentsModule` (replace `SimulatedProvider` in DI or add a config flag).
+3. Add Razorpay webhook endpoint in `PublicModule` (no auth, signature verification).
+4. Update `Order.paymentStatus` from the webhook.
+5. No OrdersController changes needed.
+
+### Phase 4 — WhatsApp notifications
+
+1. Create `WhatsAppNotificationProvider` in a new `NotificationModule`.
+2. Inject into `OrdersService.createFromPublic` (after order creation) and `OrderStatusService.transition` (on status change).
+3. Use Twilio or Meta Cloud API.
+
+### Phase 5 — Multi-store owner, customer accounts
+
+- The schema already supports `StoreUser` many-to-many — just expose a store-picker in the owner UI.
+- Customer accounts: add `userId` FK to `Customer` table + login flow.
+
+### Phase 6 — WebSocket live board
+
+Replace the 5s polling in `useCollection` with a NestJS Gateway (Socket.IO or native WS):
+1. Server emits `order:created`, `order:updated` events.
+2. Client subscribes in `RepoProvider.useEffect`.
+3. `useCollection` reacts to socket events instead of `setInterval`.
+
+---
+
+## 14. Version control & `.gitignore`
+
+### What is committed (source only)
+| Path | Status |
+|------|--------|
+| `apps/api/src/**` | ✅ tracked |
+| `apps/web/src/**` | ✅ tracked |
+| `packages/shared/src/**` | ✅ tracked |
+| `apps/api/prisma/schema.prisma` | ✅ tracked |
+| `apps/api/prisma/migrations/**` | ✅ tracked (migration SQL is source) |
+| `apps/api/prisma/seed.ts` | ✅ tracked |
+| `apps/api/.env.example` | ✅ tracked (safe template) |
+| `apps/web/.env.example` | ✅ tracked (safe template) |
+| `package.json` / `package-lock.json` | ✅ tracked |
+| `README.md`, `Docs/**` | ✅ tracked |
+
+### What is **never** committed
+| Path | Reason |
+|------|--------|
+| `**/node_modules/` | Generated — `npm install` re-creates it |
+| `apps/api/dist/` | Generated — `npm run build` re-creates it |
+| `apps/web/.next/` | Generated — Next.js build artefact |
+| `packages/shared/dist/` | Generated — `tsc` re-creates it |
+| `apps/api/prisma/dev.db` | Local SQLite — `npm run db:migrate` re-creates it |
+| `apps/api/.env` | Contains JWT secret — **never share** |
+| `apps/web/.env.local` | Contains API base URL — local override only |
+| `*.tsbuildinfo` | Incremental TS cache |
+| `*.log`, `coverage/` | Noise |
+
+### `.gitignore` highlights
+```
+**/node_modules/          ← catches root + all workspace node_modules
+apps/api/dist/            ← NestJS compiled output
+apps/web/.next/           ← Next.js build cache
+packages/shared/dist/
+*.db  *.sqlite            ← SQLite dev databases
+.env  .env.local  .env.*.local   ← real secrets
+*.tsbuildinfo             ← TS incremental cache
+!**/.env.example          ← explicitly KEEP .env.example files
+!apps/api/prisma/migrations/**/migration.sql  ← KEEP migration SQL
 ```
 
-- Serves on http://localhost:3000 (Next.js 14, hot reload enabled).
-- Owner surfaces:
-  - Dashboard: http://localhost:3000/dashboard
-  - Products: http://localhost:3000/products
-  - Categories: http://localhost:3000/categories
-  - Live Orders: http://localhost:3000/orders/live
-  - Order History: http://localhost:3000/orders/history
-  - Reports: http://localhost:3000/reports  *(has CSV export)*
-  - QR Code: http://localhost:3000/qr
-  - QR Poster (print-friendly A5): http://localhost:3000/qr/poster
-  - Printers: http://localhost:3000/printers
-  - Settings: http://localhost:3000/settings
-- Customer menu (Anna Street Food seed): http://localhost:3000/order/anna-street-food
-
-**Verify the end-to-end flow** (matches Requirements §3):
-
-1. Open `/order/anna-street-food` in one tab (or scan the QR from `/qr` on a phone on the same LAN).
-2. Add items → open cart → **Pay Now** → confirmation with `FC-1001+` number.
-3. Open `/orders/live` in another tab — the new order appears under **NEW** (cross-tab `storage` events keep it live).
-4. Advance NEW → ACCEPTED → PREPARING → READY → COMPLETED via the detail sheet.
-5. `/orders/history` shows the completed order; `/dashboard` `Today` metrics reflect the revenue + counts.
-
-**Other useful scripts**
-
-| Command                 | Purpose                                              |
-| ----------------------- | ---------------------------------------------------- |
-| `npm run dev`           | Start Next.js dev server on `:3000`.                 |
-| `npm run build`         | Production build. Verifies types + static generation. |
-| `npm run start`         | Serve the production build (requires `build` first). |
-| `npm run lint`          | ESLint (next-lint) on the whole workspace.           |
-| `npm test`              | Run the Vitest suite once (currently 54 tests).      |
-| `npm run test:watch`    | Vitest in watch mode while iterating on domain code. |
-
-**Resetting the demo data**
-The app persists everything in `localStorage` under `cartsas:v1:*` keys.
-To wipe orders and re-seed the demo store, open DevTools → Application → Local Storage → clear the origin and reload; `seedIfNeeded` will re-populate the store + categories + products (existing orders are cleared but the counter for `FC-XXXX` resets too).
-
-**"New product" button on `/products` looks disabled?**
-The button is only disabled while no store is loaded. If your `categories` collection is empty (e.g. you manually cleared it), the page swaps in a *"Create category first"* button that deep-links to `/categories`. Create at least one category and the *New product* action returns automatically.
-
-**Full acceptance walkthrough**
-See `Docs/AcceptanceTest.md` — the 28-step scenario from Requirements §32 with per-row expected results.
-
-**Port already in use?**
-
-```powershell
-# 1) find the offender
-Get-NetTCPConnection -LocalPort 3000 | Select-Object OwningProcess
-# 2) kill any stuck Next dev process
-Stop-Process -Name node -Force
-# 3) or start on another port
-$env:PORT=3001; npm run dev
+### First-time setup after `git clone`
+```bash
+npm install              # restore all node_modules from package-lock.json
+cp apps/api/.env.example apps/api/.env   # fill in JWT_SECRET
+cp apps/web/.env.example apps/web/.env.local
+npm run db:migrate       # apply Prisma migrations → creates dev.db
+npm run db:seed          # seed demo data (Anna Street Food)
+npm run dev              # start API :4000 + Web :3000
 ```
 
 ---
 
-## 11. How to resume next session
+## 15. How to resume next session
 
 1. Read this file top-to-bottom.
-2. Check the progress table in §7 — pick up at the first non-✅ row.
-3. Verify workspace layout still matches §4; if drift, reconcile before coding.
-4. Run `npm run dev` from `d:\Tools\HotSpot\FoodCart` (see §10 for the full checklist).
+2. Run `npm test` from the repo root — expect 90 tests passing.
+3. Run `npm run db:seed` if the dev.db is missing or stale.
+4. Start with `npm run dev`.
+5. Pick the next phase from §13.
