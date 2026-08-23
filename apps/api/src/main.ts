@@ -8,11 +8,24 @@ import { GlobalExceptionFilter } from "./common/filters/global-exception.filter"
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { cors: false });
 
-  const corsOrigin = process.env.CORS_ORIGIN?.split(",").map((s) => s.trim()) ?? [
+  // CORS_ORIGIN accepts a comma-separated list. Each entry may be:
+  //   • an exact origin  → "https://virundhu.vercel.app"
+  //   • a wildcard host  → "https://*.vercel.app"  (matches preview deploys)
+  //   • "*"              → allow any origin (not recommended with credentials)
+  const rawOrigins = process.env.CORS_ORIGIN?.split(",").map((s) => s.trim()).filter(Boolean) ?? [
     "http://localhost:3000",
   ];
+  const exactOrigins = new Set(rawOrigins.filter((o) => !o.includes("*")));
+  const wildcardPatterns = rawOrigins
+    .filter((o) => o.includes("*"))
+    .map((o) => new RegExp("^" + o.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*") + "$"));
   app.enableCors({
-    origin: corsOrigin,
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true); // same-origin / curl / server-to-server
+      if (exactOrigins.has(origin)) return cb(null, true);
+      if (wildcardPatterns.some((re) => re.test(origin))) return cb(null, true);
+      return cb(new Error(`Origin ${origin} not allowed by CORS`), false);
+    },
     credentials: true,
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
