@@ -106,6 +106,17 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         path,
       };
     }
+    // P2024 — connection pool exhausted (Render free tier / Supabase pgBouncer)
+    if (e.code === "P2024") {
+      this.logger.warn(`Prisma P2024 pool timeout: ${e.message}`);
+      return {
+        statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+        code: API_ERROR_CODES.INTERNAL_ERROR,
+        message: "Server is busy. Please retry in a moment.",
+        timestamp,
+        path,
+      };
+    }
     this.logger.warn(`Unmapped Prisma error ${e.code}: ${e.message}`);
     return {
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
