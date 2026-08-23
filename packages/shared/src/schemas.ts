@@ -54,6 +54,39 @@ export const storeSlugSchema = z
   .max(50)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "slug must be kebab-case (a-z, 0-9, -)");
 
+// -- Signup (owner + store, single transaction) -------------------------------
+
+/**
+ * A brand-new owner signs up by providing:
+ *   - Their identity + password
+ *   - A minimal store bootstrap (name + slug)
+ *
+ * The backend creates the User, Store, StoreUser (OWNER), StoreSettings, and
+ * OrderSequence rows in ONE transaction. No categories, products, or demo
+ * orders are seeded — new accounts start with a clean slate.
+ */
+export const signupSchema = z.object({
+  // Owner identity
+  name: trimmedString(1, 120),
+  email: z.string().trim().toLowerCase().email(),
+  phone: optionalTrimmed(30),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .max(72)
+    .regex(/[A-Za-z]/, "Password must contain at least one letter")
+    .regex(/[0-9]/, "Password must contain at least one number"),
+
+  // Store bootstrap
+  storeName: trimmedString(1, 120),
+  storeSlug: storeSlugSchema,
+  storeTamilName: optionalTrimmed(120),
+  storeDescription: optionalTrimmed(1000),
+  storePhone: optionalTrimmed(30),
+  storeAddress: optionalTrimmed(300),
+});
+export type SignupInput = z.infer<typeof signupSchema>;
+
 export const createStoreSchema = z.object({
   slug: storeSlugSchema,
   name: trimmedString(1, 120),

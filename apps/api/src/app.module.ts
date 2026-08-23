@@ -12,11 +12,13 @@ import { ReportsModule } from "./modules/reports/reports.module";
 import { PrintersModule } from "./modules/printers/printers.module";
 import { SettingsModule } from "./modules/settings/settings.module";
 import { PaymentsModule } from "./modules/payments/payments.module";
+import { HealthModule } from "./modules/health/health.module";
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    HealthModule,
     AuthModule,
     StoresModule,
     CategoriesModule,

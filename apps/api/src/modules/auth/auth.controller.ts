@@ -1,6 +1,11 @@
-import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { loginSchema, type LoginInput } from "@cartsas/shared";
+import {
+  loginSchema,
+  signupSchema,
+  type LoginInput,
+  type SignupInput,
+} from "@cartsas/shared";
 import { AuthService } from "./auth.service";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
 import { JwtAuthGuard } from "./jwt-auth.guard";
@@ -21,6 +26,16 @@ export class AuthController {
   @ApiOperation({ summary: "Owner/staff login. Returns JWT + user + memberships." })
   async login(@Body(new ZodValidationPipe(loginSchema)) input: LoginInput) {
     return this.auth.login(input);
+  }
+
+  @Post("signup")
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary:
+      "Owner self-signup. Creates user + empty store + owner membership in one transaction. Returns the same shape as /auth/login so the frontend can sign the user in immediately.",
+  })
+  async signup(@Body(new ZodValidationPipe(signupSchema)) input: SignupInput) {
+    return this.auth.signup(input);
   }
 
   @Get("me")

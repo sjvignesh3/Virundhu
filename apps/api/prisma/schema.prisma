@@ -17,7 +17,11 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  // Use PostgreSQL in every environment (dev, staging, prod). SQLite was used
+  // during Phase 1 prototyping but is not persistent on managed hosts like
+  // Render (ephemeral disk) and does not support real Decimal(10,2) columns.
+  // For local dev, run PostgreSQL via Docker (see Docs/Deployment.md).
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

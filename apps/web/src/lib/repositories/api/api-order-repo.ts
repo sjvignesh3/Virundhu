@@ -9,6 +9,7 @@ import type {
 import { apiFetch } from "@/lib/api/client";
 import { orderFromApi } from "@/lib/api/adapters";
 import { apiCurrentSession } from "@/lib/api/auth-api";
+import { emit } from "@/lib/storage/event-bus";
 import type { OrderRepo, OrderListFilter } from "../types";
 
 /**
@@ -77,6 +78,7 @@ export class ApiOrderRepo implements OrderRepo {
       body: input,
       anonymous: true,
     });
+    emit("orders");
     return orderFromApi(dto);
   }
 
@@ -113,6 +115,7 @@ export class ApiOrderRepo implements OrderRepo {
       `/stores/${session.storeId}/orders/${id}/${action}`,
       { method: "POST", body: {} },
     );
+    emit("orders");
     return orderFromApi(dto);
   }
 

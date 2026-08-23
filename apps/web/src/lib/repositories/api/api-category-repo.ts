@@ -2,6 +2,7 @@ import type { CategoryDTO } from "@cartsas/shared";
 import type { Category, CategoryDraft, ID } from "@/lib/domain/types";
 import { apiFetch } from "@/lib/api/client";
 import { categoryFromApi } from "@/lib/api/adapters";
+import { emit } from "@/lib/storage/event-bus";
 import type { CategoryRepo } from "../types";
 
 /**
@@ -39,6 +40,7 @@ export class ApiCategoryRepo implements CategoryRepo {
         isActive: true,
       },
     });
+    emit("categories");
     return categoryFromApi(dto);
   }
 
@@ -52,6 +54,7 @@ export class ApiCategoryRepo implements CategoryRepo {
         ...(patch.sortOrder !== undefined && { displayOrder: patch.sortOrder }),
       },
     });
+    emit("categories");
     return categoryFromApi(dto);
   }
 
@@ -60,6 +63,7 @@ export class ApiCategoryRepo implements CategoryRepo {
     await apiFetch<{ success: boolean }>(`/stores/${storeId}/categories/${id}`, {
       method: "DELETE",
     });
+    emit("categories");
     return true;
   }
 
@@ -72,5 +76,6 @@ export class ApiCategoryRepo implements CategoryRepo {
         }),
       ),
     );
+    emit("categories");
   }
 }

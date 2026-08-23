@@ -2,6 +2,7 @@ import type { ProductDTO } from "@cartsas/shared";
 import type { Product, ProductDraft, ID } from "@/lib/domain/types";
 import { apiFetch } from "@/lib/api/client";
 import { productFromApi } from "@/lib/api/adapters";
+import { emit } from "@/lib/storage/event-bus";
 import type { ProductRepo, ProductListFilter } from "../types";
 
 function resolveStoreId(explicit: string | undefined, fallback: () => string | undefined): string {
@@ -46,6 +47,7 @@ export class ApiProductRepo implements ProductRepo {
         lowStockThreshold: draft.lowStockThreshold ?? null,
       },
     });
+    emit("products");
     return productFromApi(dto);
   }
 
@@ -69,6 +71,7 @@ export class ApiProductRepo implements ProductRepo {
         }),
       },
     });
+    emit("products");
     return productFromApi(dto);
   }
 
@@ -77,6 +80,7 @@ export class ApiProductRepo implements ProductRepo {
     await apiFetch<{ success: boolean }>(`/stores/${storeId}/products/${id}`, {
       method: "DELETE",
     });
+    emit("products");
     return true;
   }
 
@@ -86,6 +90,7 @@ export class ApiProductRepo implements ProductRepo {
       method: "PATCH",
       body: { isAvailable: available },
     });
+    emit("products");
     return productFromApi(dto);
   }
 }

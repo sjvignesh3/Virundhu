@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ApiError } from "@cartsas/shared";
@@ -41,7 +42,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardContent className="space-y-6 p-6">
           <div className="text-center">
-            <h1 className="text-2xl font-bold">Cart SaaS</h1>
+            <h1 className="text-2xl font-bold">Virundhu</h1>
             <p className="mt-1 text-sm text-muted-foreground">Owner sign-in</p>
           </div>
 
@@ -75,6 +76,16 @@ export default function LoginPage() {
               {busy ? "Signing in…" : "Sign in"}
             </Button>
           </form>
+
+          <p className="text-center text-sm text-muted-foreground">
+            New here?{" "}
+            <Link
+              href="/signup"
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Create an owner account
+            </Link>
+          </p>
 
           <p className="text-center text-xs text-muted-foreground">
             Demo owner: <code>owner@anna.test</code> / <code>owner123</code>
