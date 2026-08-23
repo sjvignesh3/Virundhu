@@ -39,7 +39,9 @@ services:
         generateValue: true          # Render generates & stores a 256-bit secret
       - key: DATABASE_URL
         sync: false                  # ⚠  Supabase Session Pooler URL — port 5432 (NOT 6543)
+                                     #    Append ?pgbouncer=true&connection_limit=3&pool_timeout=15
+                                     #    to avoid P2024 on Render free tier
       - key: DIRECT_URL
-        sync: false                  # ⚠  Same as DATABASE_URL (Supabase direct, port 5432)
+        sync: false                  # ⚠  Same Supabase URL — used only by prisma migrate (no pool params needed)
       - key: CORS_ORIGIN
         sync: false                  # ⚠  paste your Vercel URL(s) in dashboard
