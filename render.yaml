@@ -1,17 +1,21 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Render Blueprint · Virundhu
-# One-click "New → Blueprint" in the Render dashboard uses this file to spin
-# up the Next.js web app + NestJS API. The database lives on Neon (managed
-# PostgreSQL) — see Docs/Deployment.md for why we do not use Render's own
-# free Postgres (90-day expiry).
+# Render Blueprint · Virundhu (API only)
 #
-# After the blueprint is created, set these secrets in the Render dashboard:
-#   virundhu-api   → DATABASE_URL, JWT_SECRET
-#   virundhu-web   → NEXT_PUBLIC_API_URL  (paste the deployed API URL)
+# Hosting split:
+#   • Frontend  → Vercel  (see apps/web/vercel.json)
+#   • Backend   → Render  (this file)
+#   • Database  → Supabase Postgres
+#
+# One-click "New → Blueprint" in the Render dashboard uses this file to spin
+# up the NestJS API. See Docs/Deployment.md for the full walkthrough.
+#
+# After the blueprint is created, set these secrets in the Render dashboard
+# for the "virundhu-api" service:
+#   • DATABASE_URL  → Supabase pooled connection string
+#   • CORS_ORIGIN   → https://<your-app>.vercel.app,https://*.vercel.app
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
-  # ── NestJS API ────────────────────────────────────────────────────────────
   - type: web
     name: virundhu-api
     runtime: node
@@ -26,35 +30,14 @@ services:
       - key: NODE_VERSION
         value: "20"
       - key: PORT
-        value: "10000"               # Render exposes this port on $PORT
+        value: "10000"               # Render maps this to $PORT
       - key: JWT_EXPIRES_IN
         value: "7d"
       - key: BCRYPT_ROUNDS
         value: "12"
-      - key: CORS_ORIGIN
-        fromService:
-          type: web
-          name: virundhu-web
-          property: hostport         # e.g. virundhu-web.onrender.com — Render fills this in
       - key: JWT_SECRET
-        generateValue: true          # Render creates & stores a 256-bit secret
+        generateValue: true          # Render generates & stores a 256-bit secret
       - key: DATABASE_URL
-        sync: false                  # ⚠  paste Neon connection string in dashboard
-
-  # ── Next.js web ───────────────────────────────────────────────────────────
-  - type: web
-    name: virundhu-web
-    runtime: node
-    plan: free
-    region: singapore
-    rootDir: .
-    buildCommand: npm ci && npm run build:shared && npm run build:web
-    startCommand: npm run start --workspace=@cartsas/web
-    autoDeploy: true
-    envVars:
-      - key: NODE_VERSION
-        value: "20"
-      - key: NEXT_PUBLIC_REPO_BACKEND
-        value: "api"
-      - key: NEXT_PUBLIC_API_URL
-        sync: false                  # ⚠  paste https://virundhu-api.onrender.com/api after first deploy
+        sync: false                  # ⚠  paste Supabase pooled URL in dashboard
+      - key: CORS_ORIGIN
+        sync: false                  # ⚠  paste your Vercel URL(s) in dashboard

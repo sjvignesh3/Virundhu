@@ -46,8 +46,8 @@ CartSas/                        ← npm workspace root
 
 **Runtime:**
 - Node.js 20.x, npm 10.x
-- PostgreSQL 16 (dev via Docker; prod via Neon serverless Postgres)
-- Deployment blueprint: `render.yaml` (Render web + web) · see `Docs/Deployment.md`
+- PostgreSQL 16 (dev via Docker; prod via Supabase Postgres — Mumbai region)
+- Hosting split: **Vercel** (web) · **Render** (API, `render.yaml`) · **Supabase** (DB) — see `Docs/Deployment.md`
 
 ---
 
@@ -316,7 +316,7 @@ const { data, loading, error, refresh } = useCollection(
 | P2-31 | Sign-out hard-nav + reactive AuthGuard | ✅ | `window.location.assign("/login")` tears down owner-layout state; guard listens to `cartsas:auth`/`storage` |
 | P2-32 | Rebrand user-facing UI → **Virundhu** | ✅ | Landing, login, signup, sidebar, drawer, topbar fallback, metadata |
 | P2-33 | Marketing landing page redesign | ✅ | Dark hero + mock Shop Owner Panel preview inspired by Kari Kadai; removed Phase-1 badge & Customer Menu card |
-| P2-34 | Postgres-only schema + `/api/health` + `render.yaml` + `Docs/Deployment.md` | ✅ | Provider switched from SQLite → Postgres; init migration rewritten in Postgres DDL; health module for Render probes; blueprint provisions API + web with Neon as the DB |
+| P2-34 | Postgres-only schema + `/api/health` + hosting artefacts + `Docs/Deployment.md` | ✅ | Provider switched from SQLite → Postgres; init migration rewritten in Postgres DDL; health module for Render probes; wildcard CORS for Vercel previews; `render.yaml` (API only) + `apps/web/vercel.json` (Next.js on Vercel) + Supabase as the DB |
 
 **Total tests: 98 (40 API + 58 web)**
 
@@ -439,13 +439,23 @@ npm run dev          # API on :4000 | Web on :3000
 
 ## 11a. Hosting
 
-Production is a **Render Blueprint** (`render.yaml`) that provisions two web
-services (`virundhu-api`, `virundhu-web`) both in Singapore, wired to a
-**Neon** serverless Postgres database. See **`Docs/Deployment.md`** for the
-full walk-through — including the file-level changes already applied
-(Postgres provider, health endpoints, `start:prod` with `migrate deploy`),
-the Neon setup, Render environment variables, verification steps, backups,
-and custom-domain configuration.
+Production uses three free-tier providers, all wired through git-push
+auto-deploys:
+
+| Layer     | Provider   | Artefact                    |
+| --------- | ---------- | --------------------------- |
+| Frontend  | **Vercel** | `apps/web/vercel.json`      |
+| Backend   | **Render** | `render.yaml` (API only)    |
+| Database  | **Supabase** Postgres (Mumbai, `ap-south-1`) | pooled URL in `DATABASE_URL` |
+
+Phase-3 items (Razorpay, WhatsApp, Redis, WebSockets) are **intentionally
+not deployed** — the app is fully functional without them at Phase-2 scale.
+
+See **`Docs/Deployment.md`** for the full walk-through: file-level changes
+already applied (Postgres provider, health endpoints, wildcard CORS,
+`start:prod` with `migrate deploy`), Supabase setup, Render + Vercel
+environment variables, verification steps, backups, cold-start mitigation,
+custom-domain configuration, and troubleshooting.
 
 ---
 
