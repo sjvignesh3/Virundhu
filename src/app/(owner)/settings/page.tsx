@@ -26,6 +26,7 @@ interface FormState {
   prepTimeMinutes: string;
   status: "OPEN" | "CLOSED";
   showTamilNames: boolean;
+  showUnavailable: boolean;
 }
 
 function toForm(store: Store): FormState {
@@ -40,6 +41,7 @@ function toForm(store: Store): FormState {
     prepTimeMinutes: String(store.prepTimeMinutes ?? 15),
     status: store.status,
     showTamilNames: store.showTamilNames,
+    showUnavailable: store.showUnavailable,
   };
 }
 
@@ -82,6 +84,7 @@ export default function SettingsPage() {
         prepTimeMinutes: Number(form.prepTimeMinutes) || undefined,
         status: form.status,
         showTamilNames: form.showTamilNames,
+        showUnavailable: form.showUnavailable,
       });
       setSavedAt(Date.now());
       toast.success("Settings saved");
@@ -265,6 +268,19 @@ export default function SettingsPage() {
                 checked={form.showTamilNames}
                 onCheckedChange={(v) => set("showTamilNames", v)}
                 aria-label="Show Tamil names"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label className="font-medium">Show unavailable items</Label>
+                <p className="text-xs text-muted-foreground">
+                  Keeps hidden items on the menu greyed-out instead of removing them.
+                </p>
+              </div>
+              <Switch
+                checked={form.showUnavailable}
+                onCheckedChange={(v) => set("showUnavailable", v)}
+                aria-label="Show unavailable items"
               />
             </div>
           </CardContent>

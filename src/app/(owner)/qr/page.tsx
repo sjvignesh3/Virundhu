@@ -1,19 +1,19 @@
 "use client";
 
 import * as React from "react";
-import QRCode from "qrcode";
+import Link from "next/link";
 import { toast } from "sonner";
-import { Copy, Download, ExternalLink, Loader2, QrCode } from "lucide-react";
+import { Copy, Download, ExternalLink, Loader2, Printer, QrCode } from "lucide-react";
 import { PageHeader } from "@/components/owner/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDemoStore } from "@/lib/hooks/use-demo-store";
+import { buildOrderUrl, useQr } from "@/features/qr/use-qr";
 
 export default function QrPage() {
   const { store, loading } = useDemoStore();
-  const [dataUrl, setDataUrl] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
   const [origin, setOrigin] = React.useState<string>("");
 
@@ -21,27 +21,8 @@ export default function QrPage() {
     if (typeof window !== "undefined") setOrigin(window.location.origin);
   }, []);
 
-  const menuUrl = store ? `${origin}/order/${store.slug}` : "";
-
-  React.useEffect(() => {
-    if (!menuUrl) return;
-    let cancelled = false;
-    QRCode.toDataURL(menuUrl, {
-      errorCorrectionLevel: "M",
-      margin: 2,
-      width: 512,
-      color: { dark: "#111827", light: "#ffffff" },
-    })
-      .then((url) => {
-        if (!cancelled) setDataUrl(url);
-      })
-      .catch(() => {
-        if (!cancelled) setDataUrl(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [menuUrl]);
+  const menuUrl = store ? buildOrderUrl(origin, store.slug) : "";
+  const { dataUrl } = useQr(menuUrl);
 
   function copyLink() {
     if (!menuUrl) return;
@@ -94,9 +75,14 @@ export default function QrPage() {
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               )}
             </div>
-            <div className="flex w-full gap-2">
+            <div className="flex w-full flex-wrap gap-2">
               <Button className="flex-1" onClick={download} disabled={!dataUrl}>
                 <Download className="mr-2 h-4 w-4" /> Download PNG
+              </Button>
+              <Button asChild variant="outline" className="flex-1">
+                <Link href="/qr/poster">
+                  <Printer className="mr-2 h-4 w-4" /> Print poster
+                </Link>
               </Button>
             </div>
           </CardContent>

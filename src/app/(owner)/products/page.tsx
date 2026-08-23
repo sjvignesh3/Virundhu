@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Pencil, Plus, Search, Trash2, UtensilsCrossed } from "lucide-react";
+import Link from "next/link";
+import { FolderTree, Pencil, Plus, Search, Trash2, UtensilsCrossed } from "lucide-react";
 import { PageHeader } from "@/components/owner/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -91,16 +92,25 @@ export default function ProductsPage() {
         title="Products"
         description="Menu items with prices, availability, and Tamil translations."
         actions={
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setFormOpen(true);
-            }}
-            disabled={!store || categoryList.length === 0}
-          >
-            <Plus className="h-4 w-4" />
-            New product
-          </Button>
+          categoryList.length === 0 ? (
+            <Button asChild variant="outline" title="Create a category before adding products">
+              <Link href="/categories">
+                <FolderTree className="h-4 w-4" />
+                Create category first
+              </Link>
+            </Button>
+          ) : (
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setFormOpen(true);
+              }}
+              disabled={!store}
+            >
+              <Plus className="h-4 w-4" />
+              New product
+            </Button>
+          )
         }
       />
 
