@@ -1,0 +1,2058 @@
+# PROJECT: FOOD CART ORDERING & OPERATIONS PLATFORM
+# PHASE 2 — DATABASE + BACKEND + PRODUCTION-LIKE WORKFLOW
+
+You are a senior full-stack architect and backend engineer.
+
+Phase 1 has already been completed.
+
+The Phase 1 frontend is a polished, mobile-first Food Cart ordering and
+operations application.
+
+Phase 2 must now convert the Phase 1 prototype into a fully functional
+application backed by a real database and API.
+
+The goal of Phase 2 is:
+
+AFTER THIS PHASE, THE PRODUCT MUST BE USABLE END-TO-END.
+
+Do NOT redesign the entire Phase 1 UI unless required for functionality.
+
+Preserve the existing visual design, UX, responsive behaviour and component
+architecture wherever possible.
+
+--------------------------------------------------
+# 1. PHASE 2 OBJECTIVE
+--------------------------------------------------
+
+Replace the Phase 1 mock/local persistence layer with a real backend and
+PostgreSQL database.
+
+The following workflow MUST work across different devices:
+
+OWNER DEVICE
+    ↓
+Owner Dashboard
+
+CUSTOMER MOBILE
+    ↓
+Scan QR
+    ↓
+Customer Order Page
+    ↓
+Select Products
+    ↓
+Cart
+    ↓
+Pay Now
+    ↓
+Order Created
+    ↓
+OWNER DEVICE
+    ↓
+Live Order Board
+    ↓
+NEW
+    ↓
+ACCEPTED
+    ↓
+PREPARING
+    ↓
+READY
+    ↓
+COMPLETED
+    ↓
+Order History
+    ↓
+Dashboard / Reports updated
+
+This is the primary acceptance workflow for Phase 2.
+
+--------------------------------------------------
+# 2. TECHNOLOGY STACK
+--------------------------------------------------
+
+Use the following stack.
+
+FRONTEND
+
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+- shadcn/ui
+- Radix UI
+- Lucide React
+- Zustand
+- TanStack Query
+- React Hook Form
+- Zod
+
+BACKEND
+
+- NestJS
+- TypeScript
+
+DATABASE
+
+- PostgreSQL
+
+ORM
+
+- Prisma
+
+VALIDATION
+
+- Zod on frontend where appropriate
+- class-validator / NestJS validation where appropriate
+- Database constraints through PostgreSQL/Prisma
+
+API STYLE
+
+- REST API
+
+TESTING
+
+- Vitest / Jest for unit tests
+- Playwright for end-to-end tests
+
+Do NOT introduce microservices.
+
+Use a modular monolith architecture.
+
+--------------------------------------------------
+# 3. ARCHITECTURE
+--------------------------------------------------
+
+The target architecture is:
+
+CUSTOMER / OWNER FRONTEND
+        ↓
+Next.js
+        ↓
+API Client
+        ↓
+NestJS REST API
+        ↓
+Application / Domain Services
+        ↓
+Prisma
+        ↓
+PostgreSQL
+
+Do NOT allow React components to directly access Prisma.
+
+Do NOT put database queries inside React components.
+
+Do NOT put business logic inside controllers.
+
+Use:
+
+Controller
+    ↓
+Service / Use Case
+    ↓
+Repository / Prisma
+    ↓
+Database
+
+The exact implementation may use Prisma directly inside well-defined
+backend services if a repository abstraction would add unnecessary
+complexity.
+
+--------------------------------------------------
+# 4. DATABASE DESIGN PRINCIPLE
+--------------------------------------------------
+
+The database must be designed for a SaaS product where multiple Food Cart
+businesses can eventually use the same platform.
+
+Therefore every business-owned record must be scoped to a Store.
+
+The core relationship is:
+
+Store
+ ├── Users
+ ├── Categories
+ ├── Products
+ ├── Orders
+ ├── Customers
+ ├── Printers
+ └── Settings
+
+Do NOT create a database that only works for the demo Food Cart.
+
+--------------------------------------------------
+# 5. CORE DATABASE TABLES
+--------------------------------------------------
+
+Implement the following primary tables.
+
+1. users
+2. stores
+3. store_users
+4. categories
+5. products
+6. customers
+7. orders
+8. order_items
+9. order_status_history
+10. payments
+11. printers
+12. store_settings
+
+Additional tables may be introduced only when they provide a clear
+architectural benefit.
+
+Do NOT create unnecessary tables simply for the sake of normalization.
+
+--------------------------------------------------
+# 6. USERS
+--------------------------------------------------
+
+Create a users table.
+
+Fields should include conceptually:
+
+User
+- id
+- name
+- email
+- phone
+- passwordHash
+- isActive
+- createdAt
+- updatedAt
+
+Do NOT store plaintext passwords.
+
+Authentication infrastructure may be kept minimal if authentication is not
+yet required by the existing Phase 1 application, but the schema must be
+ready for it.
+
+--------------------------------------------------
+# 7. STORES
+--------------------------------------------------
+
+A Store represents one Food Cart business.
+
+Fields:
+
+Store
+- id
+- name
+- slug
+- description
+- phone
+- address
+- logoUrl
+- imageUrl
+- isOpen
+- createdAt
+- updatedAt
+
+Constraints:
+
+- id = UUID
+- slug = UNIQUE
+- timestamps required
+
+Example:
+
+id:
+UUID
+
+name:
+Anna Street Food
+
+slug:
+anna-street-food
+
+description:
+Fresh street food made to order.
+
+--------------------------------------------------
+# 8. STORE USERS
+--------------------------------------------------
+
+Use a many-to-many relationship between users and stores.
+
+store_users:
+
+- id
+- storeId
+- userId
+- role
+- createdAt
+
+Roles:
+
+OWNER
+MANAGER
+STAFF
+
+For Phase 2, OWNER is sufficient for actual UI access.
+
+However, design the schema so additional roles can be supported later.
+
+Unique constraint:
+
+(storeId, userId)
+
+--------------------------------------------------
+# 9. CATEGORIES
+--------------------------------------------------
+
+categories:
+
+- id
+- storeId
+- name
+- tamilName
+- description
+- displayOrder
+- isActive
+- createdAt
+- updatedAt
+
+Constraints:
+
+A category belongs to exactly one store.
+
+Prevent duplicate category names within the same store where appropriate.
+
+Example:
+
+Chicken
+சிக்கன்
+
+Snacks
+சிற்றுண்டி
+
+Drinks
+பானங்கள்
+
+--------------------------------------------------
+# 10. PRODUCTS
+--------------------------------------------------
+
+products:
+
+- id
+- storeId
+- categoryId
+- name
+- tamilName
+- description
+- tamilDescription
+- price
+- unit
+- imageUrl
+- isAvailable
+- stockQuantity
+- lowStockThreshold
+- displayOrder
+- createdAt
+- updatedAt
+
+Important:
+
+Use DECIMAL / NUMERIC for monetary values.
+
+DO NOT use floating-point numbers for money.
+
+Example:
+
+price = NUMERIC(10,2)
+
+Stock should support decimal quantities if required.
+
+Example:
+
+stockQuantity = NUMERIC(10,3)
+
+For normal Food Cart products:
+
+Chicken Kothu Parotta
+₹120
+Unit = PLATE
+
+Lemon Soda
+₹40
+Unit = GLASS
+
+Tea
+₹15
+Unit = CUP
+
+--------------------------------------------------
+# 11. PRODUCT/CATEGORY RELATIONSHIP
+--------------------------------------------------
+
+Product:
+
+belongs to one Category.
+
+Category:
+
+belongs to one Store.
+
+Product:
+
+belongs to one Store.
+
+Validate that:
+
+product.storeId == product.category.storeId
+
+Do not allow a product from Store A to be assigned to a category from
+Store B.
+
+This is an important tenant-isolation rule.
+
+--------------------------------------------------
+# 12. CUSTOMERS
+--------------------------------------------------
+
+Customers are public CX users and DO NOT need an account in Phase 2.
+
+customers:
+
+- id
+- storeId
+- name
+- phone
+- createdAt
+- updatedAt
+
+The customer may be created or matched based on phone number.
+
+Do not require customer login to place an order.
+
+The ordering experience should remain frictionless.
+
+A customer should be able to:
+
+Scan QR
+→ Browse
+→ Order
+
+without creating an account.
+
+--------------------------------------------------
+# 13. ORDERS
+--------------------------------------------------
+
+orders:
+
+- id
+- storeId
+- customerId
+- orderNumber
+- status
+- paymentStatus
+- paymentMethod
+- subtotal
+- discountAmount
+- taxAmount
+- totalAmount
+- notes
+- createdAt
+- updatedAt
+- completedAt
+- cancelledAt
+
+Use NUMERIC / DECIMAL for all monetary fields.
+
+Example:
+
+subtotal NUMERIC(10,2)
+discountAmount NUMERIC(10,2)
+taxAmount NUMERIC(10,2)
+totalAmount NUMERIC(10,2)
+
+--------------------------------------------------
+# 14. ORDER NUMBER
+--------------------------------------------------
+
+Create a human-friendly order number.
+
+Example:
+
+FC-1001
+FC-1002
+FC-1003
+
+The database primary key should still be a UUID.
+
+Do NOT use the human-readable order number as the primary key.
+
+Order numbers must be unique within a Store.
+
+Recommended constraint:
+
+UNIQUE(storeId, orderNumber)
+
+The implementation must safely generate order numbers even if multiple
+orders are created close together.
+
+--------------------------------------------------
+# 15. ORDER STATUS
+--------------------------------------------------
+
+Use an enum:
+
+NEW
+ACCEPTED
+PREPARING
+READY
+COMPLETED
+CANCELLED
+
+Normal workflow:
+
+NEW
+ ↓
+ACCEPTED
+ ↓
+PREPARING
+ ↓
+READY
+ ↓
+COMPLETED
+
+Cancellation should be handled according to clearly defined rules.
+
+Do NOT allow arbitrary status changes.
+
+--------------------------------------------------
+# 16. ORDER STATE TRANSITIONS
+--------------------------------------------------
+
+Implement order state transition logic on the backend.
+
+Example:
+
+NEW → ACCEPTED
+ACCEPTED → PREPARING
+PREPARING → READY
+READY → COMPLETED
+
+Invalid:
+
+NEW → READY
+NEW → COMPLETED
+COMPLETED → PREPARING
+
+The backend MUST enforce this.
+
+Do not rely only on frontend button visibility.
+
+The frontend should also enforce it for UX, but the backend is the final
+authority.
+
+Create a reusable service such as:
+
+OrderStatusService
+
+or equivalent domain logic.
+
+--------------------------------------------------
+# 17. ORDER ITEMS
+--------------------------------------------------
+
+order_items:
+
+- id
+- orderId
+- productId
+- productName
+- unit
+- unitPrice
+- quantity
+- subtotal
+- createdAt
+
+IMPORTANT:
+
+Store product snapshot information in the order item.
+
+Do NOT rely only on productId.
+
+Why?
+
+If the owner changes:
+
+Chicken Kothu Parotta
+₹120
+
+to:
+
+Chicken Kothu Parotta
+₹150
+
+old orders must still display:
+
+Chicken Kothu Parotta
+₹120
+
+Therefore store:
+
+productId
+productName
+unit
+unitPrice
+quantity
+subtotal
+
+as the historical order snapshot.
+
+--------------------------------------------------
+# 18. ORDER TOTAL CALCULATION
+--------------------------------------------------
+
+The backend must calculate order totals.
+
+Do NOT trust totals sent by the customer frontend.
+
+Example:
+
+Chicken Kothu Parotta
+₹120 × 2
+= ₹240
+
+Lemon Soda
+₹40 × 1
+= ₹40
+
+Subtotal:
+₹280
+
+Total:
+₹280
+
+The backend should:
+
+1. Receive product IDs and quantities
+2. Fetch current product data
+3. Verify availability
+4. Verify store ownership
+5. Calculate item prices
+6. Calculate subtotal
+7. Calculate discounts/taxes if applicable
+8. Calculate final total
+9. Create the order
+
+The frontend may display calculated totals for UX, but the backend is
+authoritative.
+
+--------------------------------------------------
+# 19. ORDER STATUS HISTORY
+--------------------------------------------------
+
+Create:
+
+order_status_history
+
+Fields:
+
+- id
+- orderId
+- fromStatus
+- toStatus
+- changedByUserId
+- note
+- createdAt
+
+Every status transition should create a history record.
+
+Example:
+
+NEW → ACCEPTED
+changedBy = Owner
+time = 10:35 AM
+
+ACCEPTED → PREPARING
+changedBy = Staff
+time = 10:37 AM
+
+PREPARING → READY
+changedBy = Staff
+time = 10:48 AM
+
+READY → COMPLETED
+changedBy = Staff
+time = 10:55 AM
+
+This will later support:
+
+- operational analytics
+- preparation time
+- audit history
+- staff performance
+- debugging
+
+--------------------------------------------------
+# 20. PAYMENTS
+--------------------------------------------------
+
+Create a payments table even though Razorpay is NOT implemented yet.
+
+payments:
+
+- id
+- orderId
+- provider
+- providerPaymentId
+- method
+- status
+- amount
+- createdAt
+- updatedAt
+
+Enums can include:
+
+PaymentProvider:
+
+SIMULATED
+RAZORPAY
+
+PaymentStatus:
+
+PENDING
+PAID
+FAILED
+REFUNDED
+
+PaymentMethod:
+
+SIMULATED
+UPI
+CARD
+CASH
+
+For Phase 2:
+
+provider = SIMULATED
+
+payment status can be:
+
+PAID
+
+when the customer clicks the simulated Pay Now flow.
+
+DO NOT integrate Razorpay yet.
+
+The architecture must allow Razorpay to replace the simulated payment later.
+
+--------------------------------------------------
+# 21. PRINTERS
+--------------------------------------------------
+
+printers:
+
+- id
+- storeId
+- name
+- type
+- connectionStatus
+- address
+- isActive
+- createdAt
+- updatedAt
+
+Phase 2 does not require actual printer hardware integration.
+
+The database should simply persist printer configuration.
+
+--------------------------------------------------
+# 22. STORE SETTINGS
+--------------------------------------------------
+
+store_settings:
+
+- id
+- storeId
+- defaultLanguage
+- showTamilNames
+- acceptOrders
+- minimumOrderValue
+- estimatedPreparationMinutes
+- createdAt
+- updatedAt
+
+One settings record per Store.
+
+--------------------------------------------------
+# 23. QR CODE
+--------------------------------------------------
+
+DO NOT store QR image files in the database.
+
+The QR code is derived from:
+
+Store slug + application URL
+
+Example:
+
+/order/anna-street-food
+
+The frontend generates the QR dynamically.
+
+The backend should expose the store's public ordering information.
+
+Example API:
+
+GET /public/stores/:slug
+
+This returns only public information required for ordering.
+
+Do NOT expose owner/private data through public endpoints.
+
+--------------------------------------------------
+# 24. PUBLIC CUSTOMER API
+--------------------------------------------------
+
+Create public APIs for the CX ordering flow.
+
+Example:
+
+GET /api/public/stores/:slug
+
+GET /api/public/stores/:slug/categories
+
+GET /api/public/stores/:slug/products
+
+POST /api/public/stores/:slug/orders
+
+GET /api/public/orders/:orderNumber
+
+The customer should NOT need authentication.
+
+Public API responses should only contain data required for customer ordering.
+
+--------------------------------------------------
+# 25. OWNER APIs
+--------------------------------------------------
+
+Create authenticated/owner APIs conceptually:
+
+GET    /api/stores/:storeId
+GET    /api/stores/:storeId/dashboard
+GET    /api/stores/:storeId/products
+POST   /api/stores/:storeId/products
+PATCH  /api/stores/:storeId/products/:productId
+DELETE /api/stores/:storeId/products/:productId
+
+GET    /api/stores/:storeId/categories
+POST   /api/stores/:storeId/categories
+PATCH  /api/stores/:storeId/categories/:categoryId
+DELETE /api/stores/:storeId/categories/:categoryId
+
+GET    /api/stores/:storeId/orders
+GET    /api/stores/:storeId/orders/:orderId
+
+POST   /api/stores/:storeId/orders/:orderId/accept
+POST   /api/stores/:storeId/orders/:orderId/prepare
+POST   /api/stores/:storeId/orders/:orderId/ready
+POST   /api/stores/:storeId/orders/:orderId/complete
+
+GET    /api/stores/:storeId/reports
+GET    /api/stores/:storeId/printers
+GET    /api/stores/:storeId/settings
+
+The exact REST structure can be improved if required, but maintain clear
+resource boundaries.
+
+--------------------------------------------------
+# 26. DASHBOARD
+--------------------------------------------------
+
+Dashboard metrics must now come from PostgreSQL.
+
+Do NOT use hardcoded numbers.
+
+For example:
+
+Today's Orders:
+COUNT orders created today
+
+Completed:
+COUNT completed orders today
+
+Active:
+COUNT orders where status is:
+
+NEW
+ACCEPTED
+PREPARING
+READY
+
+Revenue:
+SUM totalAmount for completed/paid orders according to the defined
+business rule.
+
+Low Stock:
+COUNT products where:
+
+stockQuantity <= lowStockThreshold
+
+Out of Stock:
+COUNT products where:
+
+stockQuantity <= 0
+
+All dashboard numbers must be calculated from persisted database data.
+
+--------------------------------------------------
+# 27. LIVE ORDER BOARD
+--------------------------------------------------
+
+Live Order Board must read orders from the backend.
+
+Columns:
+
+NEW ORDERS
+ACCEPTED
+PREPARING
+READY
+
+Completed orders should not remain on the active board.
+
+When owner clicks:
+
+Accept Order
+
+call backend API.
+
+When successful:
+
+update the UI.
+
+Same for:
+
+Start Preparing
+Mark Ready
+Complete
+
+Do NOT optimistically change the UI permanently if the backend request fails.
+
+Show proper loading/error states.
+
+--------------------------------------------------
+# 28. CROSS-DEVICE ORDER FLOW
+--------------------------------------------------
+
+This is a CRITICAL Phase 2 requirement.
+
+Test this using two different devices/browser sessions.
+
+DEVICE A:
+
+Owner Dashboard
+
+DEVICE B:
+
+Customer Mobile
+
+Scenario:
+
+DEVICE B:
+Customer scans QR.
+
+DEVICE B:
+Customer places order.
+
+DEVICE A:
+New order appears on Live Order Board.
+
+DEVICE A:
+Owner accepts.
+
+DEVICE A:
+Owner starts preparing.
+
+DEVICE A:
+Owner marks ready.
+
+DEVICE A:
+Owner completes.
+
+DEVICE A:
+Order appears in history.
+
+This proves that the database/API is actually being used.
+
+--------------------------------------------------
+# 29. LIVE ORDER REFRESH
+--------------------------------------------------
+
+Phase 2 does NOT require WebSockets yet.
+
+Use polling initially.
+
+For example:
+
+Live Order Board polls the API every 5–10 seconds.
+
+The implementation should make the realtime transport replaceable later.
+
+Future:
+
+REST polling
+    ↓
+WebSocket / SSE
+
+Do NOT introduce Redis or WebSockets unless actually required.
+
+Keep Phase 2 simple and reliable.
+
+--------------------------------------------------
+# 30. PRODUCTS
+--------------------------------------------------
+
+Connect the existing Phase 1 Product UI to the API.
+
+Adding a product must create a PostgreSQL record.
+
+Editing a product must update PostgreSQL.
+
+Deleting a product must update PostgreSQL.
+
+Changing availability must persist.
+
+Changing price must persist.
+
+Changing category must persist.
+
+Refreshing the browser must NOT lose data.
+
+Opening the application from another browser/device must show the same
+product catalog.
+
+--------------------------------------------------
+# 31. CATEGORIES
+--------------------------------------------------
+
+Connect Category management to PostgreSQL.
+
+Support:
+
+Create
+Read
+Update
+Delete
+
+Do not allow accidental deletion of a category containing products.
+
+Provide an appropriate reassignment or warning flow.
+
+--------------------------------------------------
+# 32. CUSTOMER ORDER CREATION
+--------------------------------------------------
+
+Customer checkout must use the backend.
+
+Flow:
+
+Customer selects products.
+
+Frontend sends:
+
+productId
+quantity
+customer information
+notes if applicable
+
+Backend:
+
+- validates store
+- validates products
+- validates availability
+- validates quantities
+- calculates price
+- creates customer
+- creates order
+- creates order items
+- creates simulated payment
+- creates initial order status history
+- returns order confirmation
+
+This entire operation should be handled safely.
+
+Prefer a database transaction for the order creation process.
+
+--------------------------------------------------
+# 33. STOCK HANDLING
+--------------------------------------------------
+
+Phase 2 should persist product stock.
+
+When an order is created:
+
+decrease stock according to ordered quantity.
+
+Do this carefully to avoid invalid negative stock.
+
+Example:
+
+Stock:
+10 plates
+
+Order:
+3 plates
+
+Remaining:
+7 plates
+
+If stock reaches:
+
+0
+
+product becomes unavailable/out of stock according to the business rule.
+
+The stock update and order creation should be handled transactionally.
+
+Do not allow two simultaneous orders to incorrectly consume the same
+remaining stock.
+
+--------------------------------------------------
+# 34. ORDER HISTORY
+--------------------------------------------------
+
+Order History must query PostgreSQL.
+
+Support:
+
+- Search
+- Status filter
+- Date filter
+- Pagination
+- Order details
+
+Do not load thousands of records into the browser unnecessarily.
+
+Use backend pagination.
+
+Example:
+
+?page=1&limit=20
+
+--------------------------------------------------
+# 35. REPORTS
+--------------------------------------------------
+
+Reports must be generated from database queries.
+
+Phase 2 reports should support:
+
+- Today's orders
+- Today's revenue
+- Completed orders
+- Pending orders
+- Last 7 days
+- Status breakdown
+
+Do not store duplicate report totals unless there is a strong reason.
+
+Prefer calculating them from the source order data initially.
+
+--------------------------------------------------
+# 36. CSV EXPORT
+--------------------------------------------------
+
+The existing Export CSV functionality should work with real database data.
+
+Export:
+
+- Order number
+- Customer
+- Phone
+- Items
+- Total
+- Payment status
+- Order status
+- Created date
+- Completed date
+
+Use server-side pagination for normal UI queries.
+
+CSV export may use a dedicated backend endpoint.
+
+--------------------------------------------------
+# 37. DATA VALIDATION
+--------------------------------------------------
+
+Validate all input.
+
+Examples:
+
+Product price >= 0
+
+Quantity > 0
+
+Store slug valid
+
+Product belongs to store
+
+Category belongs to store
+
+Order belongs to store
+
+Customer order references valid products
+
+No invalid status transition
+
+No negative stock unless explicitly allowed
+
+Do not trust client-side validation alone.
+
+--------------------------------------------------
+# 38. DATABASE INDEXES
+--------------------------------------------------
+
+Add appropriate indexes.
+
+At minimum consider indexes for:
+
+stores.slug
+
+products.storeId
+
+products.categoryId
+
+products.storeId + isAvailable
+
+categories.storeId
+
+orders.storeId
+
+orders.storeId + status
+
+orders.storeId + createdAt
+
+orders.customerId
+
+order_items.orderId
+
+order_status_history.orderId
+
+payments.orderId
+
+customers.storeId + phone
+
+Use composite indexes where they match actual query patterns.
+
+Do not blindly index every column.
+
+--------------------------------------------------
+# 39. DATABASE CONSTRAINTS
+--------------------------------------------------
+
+Use database-level constraints wherever appropriate.
+
+Examples:
+
+NOT NULL
+UNIQUE
+FOREIGN KEY
+CHECK constraints where supported/useful
+
+Examples:
+
+Store slug must be unique.
+
+Order total cannot be negative.
+
+Product price cannot be negative.
+
+Quantity must be greater than zero.
+
+Relationships must maintain referential integrity.
+
+--------------------------------------------------
+# 40. DELETE STRATEGY
+--------------------------------------------------
+
+Think carefully about deletion.
+
+Do NOT physically delete historical order information.
+
+For products/categories/stores where historical references exist, prefer
+soft-delete/archive behaviour where appropriate.
+
+For example:
+
+Product:
+isActive = false
+
+instead of deleting a product that appears in historical orders.
+
+Historical orders must remain readable forever.
+
+--------------------------------------------------
+# 41. DATABASE MIGRATIONS
+--------------------------------------------------
+
+Use Prisma migrations.
+
+Create:
+
+Initial migration
+
+Seed migration/data
+
+Do NOT rely on manually creating tables.
+
+The application must be reproducible on another development machine.
+
+Required commands should be documented.
+
+Example conceptual workflow:
+
+Install dependencies
+
+Configure DATABASE_URL
+
+Run migration
+
+Run seed
+
+Start backend
+
+Start frontend
+
+--------------------------------------------------
+# 42. SEED DATA
+--------------------------------------------------
+
+Create realistic seed data.
+
+Seed:
+
+1 Store
+
+1 Owner
+
+5 Categories
+
+At least 8–10 Products
+
+Several Customers
+
+Several Orders across different statuses
+
+Several completed historical orders
+
+This allows the Dashboard, Live Board, Reports and Order History to be
+immediately demonstrated.
+
+Use the existing Food Cart:
+
+Anna Street Food
+
+Slug:
+
+anna-street-food
+
+--------------------------------------------------
+# 43. ENVIRONMENT VARIABLES
+--------------------------------------------------
+
+Do not hardcode:
+
+DATABASE_URL
+
+API URL
+
+Application URL
+
+Secrets
+
+Use environment variables.
+
+Create appropriate:
+
+.env.example
+
+Do NOT commit real secrets.
+
+--------------------------------------------------
+# 44. API ERROR HANDLING
+--------------------------------------------------
+
+Backend should return consistent error responses.
+
+Frontend should translate errors into useful messages.
+
+Example:
+
+Product unavailable:
+
+"This item is currently unavailable."
+
+Invalid transition:
+
+"This order cannot be moved to that status."
+
+Database/server failure:
+
+"Something went wrong. Please try again."
+
+Do not expose raw database errors to customers.
+
+--------------------------------------------------
+# 45. SECURITY FOUNDATION
+--------------------------------------------------
+
+Even though Phase 2 is not a complete production security implementation,
+follow basic security principles.
+
+- Validate inputs
+- Never expose password hashes
+- Do not trust storeId from arbitrary public requests
+- Validate ownership of resources
+- Restrict owner APIs
+- Avoid SQL injection through Prisma
+- Do not expose private store settings through public APIs
+- Do not expose unnecessary customer information publicly
+
+Public customer APIs should return minimum necessary information.
+
+--------------------------------------------------
+# 46. FRONTEND DATA LAYER
+--------------------------------------------------
+
+Replace Phase 1 mock repositories with API repositories.
+
+Keep the existing domain/service abstraction.
+
+Example:
+
+Phase 1:
+
+ProductRepository
+    ↓
+MockProductRepository
+
+Phase 2:
+
+ProductRepository
+    ↓
+ApiProductRepository
+    ↓
+NestJS
+    ↓
+PostgreSQL
+
+Similarly:
+
+OrderRepository
+CategoryRepository
+StoreRepository
+
+Do NOT rewrite all UI components to directly call fetch() everywhere.
+
+Centralize API communication.
+
+Use TanStack Query for:
+
+- fetching
+- caching
+- mutations
+- invalidation
+- loading states
+- errors
+
+--------------------------------------------------
+# 47. QR FLOW
+--------------------------------------------------
+
+Keep the Phase 1 QR implementation.
+
+The QR should continue to resolve to:
+
+/order/:storeSlug
+
+The customer page should fetch its menu from:
+
+GET /api/public/stores/:slug
+
+Therefore:
+
+QR
+ ↓
+Public Store Page
+ ↓
+API
+ ↓
+PostgreSQL
+ ↓
+Products/Categories
+
+If the owner changes a product price:
+
+The customer page should show the new price after fetching fresh data.
+
+No hardcoded menu data.
+
+--------------------------------------------------
+# 48. OWNER SETTINGS
+--------------------------------------------------
+
+Connect Settings UI to PostgreSQL.
+
+When owner changes:
+
+Store name
+Description
+Phone
+Address
+Open/closed status
+Minimum order
+Preparation time
+Tamil visibility
+
+the changes must persist.
+
+Refreshing the browser must retain them.
+
+--------------------------------------------------
+# 49. PRINTERS
+--------------------------------------------------
+
+Connect the existing Printer settings UI to PostgreSQL.
+
+Phase 2 should support:
+
+Create printer
+Edit printer
+Delete/deactivate printer
+View printer status
+
+Do NOT implement physical printing.
+
+The backend model should make future printer integrations possible.
+
+--------------------------------------------------
+# 50. AUTHENTICATION
+--------------------------------------------------
+
+If Phase 1 currently has a placeholder owner login, replace it with a
+proper minimal authentication boundary suitable for Phase 2.
+
+The architecture should support:
+
+User
+ ↓
+Store membership
+ ↓
+Role
+ ↓
+Store access
+
+Do not allow one store owner to access another store's data.
+
+If full authentication would require substantial redesign, implement the
+smallest secure authentication solution compatible with the current
+application architecture rather than inventing a complex identity platform.
+
+--------------------------------------------------
+# 51. MULTI-TENANT DATA ISOLATION
+--------------------------------------------------
+
+This is critical.
+
+Every owner API must ensure:
+
+Authenticated User
+    ↓
+Store Membership
+    ↓
+Requested Store
+    ↓
+Resource
+
+Never trust:
+
+storeId supplied by the frontend.
+
+Always verify that the authenticated user has access to that store.
+
+Similarly:
+
+Product → correct Store
+Category → correct Store
+Order → correct Store
+Printer → correct Store
+Settings → correct Store
+
+--------------------------------------------------
+# 52. API DOCUMENTATION
+--------------------------------------------------
+
+Create basic API documentation.
+
+Use Swagger/OpenAPI in NestJS.
+
+Document:
+
+- Public endpoints
+- Owner endpoints
+- Request bodies
+- Responses
+- Error responses
+
+This will make future integrations with:
+
+WhatsApp
+Razorpay
+mobile apps
+third-party systems
+
+much easier.
+
+--------------------------------------------------
+# 53. FUTURE INTEGRATION BOUNDARIES
+--------------------------------------------------
+
+Do NOT implement these in Phase 2:
+
+WhatsApp
+Razorpay
+GST/tax engine
+Delivery management
+AI
+Advanced inventory
+Notifications
+Loyalty
+Customer accounts
+Complex analytics
+
+But design clean service boundaries for future implementation.
+
+For example:
+
+OrderService
+
+PaymentService
+
+NotificationService
+
+InventoryService
+
+PrinterService
+
+Future:
+
+PaymentService
+    ↓
+RazorpayPaymentProvider
+
+NotificationService
+    ↓
+WhatsAppProvider
+
+PrinterService
+    ↓
+ThermalPrinterProvider
+
+Do not put these future integrations directly into OrderController.
+
+--------------------------------------------------
+# 54. TRANSACTIONAL OPERATIONS
+--------------------------------------------------
+
+The following operations should use database transactions where necessary.
+
+ORDER CREATION:
+
+Customer
++
+Order
++
+Order Items
++
+Payment
++
+Status History
++
+Stock Update
+
+must either all succeed or fail together.
+
+ORDER STATUS CHANGE:
+
+Order status update
++
+Status history
+
+must be atomic.
+
+Do not allow partially completed database operations.
+
+--------------------------------------------------
+# 55. CONCURRENCY
+--------------------------------------------------
+
+Think about two customers ordering the same product simultaneously.
+
+Example:
+
+Stock = 2
+
+Customer A orders 2
+
+Customer B orders 1
+
+The system must NOT allow the database to end up with:
+
+Stock = -1
+
+Use appropriate transactional/locking strategy.
+
+The backend must be the source of truth.
+
+--------------------------------------------------
+# 56. PERFORMANCE
+--------------------------------------------------
+
+Do not prematurely optimize.
+
+But implement basic good practices:
+
+- Pagination
+- Proper indexes
+- Select only required columns
+- Avoid N+1 queries
+- Use database aggregation for dashboard metrics
+- Use TanStack Query caching
+- Lazy load non-critical UI where appropriate
+
+--------------------------------------------------
+# 57. TESTING
+--------------------------------------------------
+
+Create tests for the most important domain logic.
+
+At minimum test:
+
+Product creation
+
+Category creation
+
+Order calculation
+
+Order creation
+
+Order status transitions
+
+Invalid status transitions
+
+Stock reduction
+
+Insufficient stock
+
+Multi-store isolation
+
+Dashboard calculations
+
+Payment creation
+
+Customer ordering
+
+End-to-end order workflow
+
+--------------------------------------------------
+# 58. CRITICAL END-TO-END TEST
+--------------------------------------------------
+
+This test MUST pass.
+
+STEP 1:
+
+Start PostgreSQL.
+
+STEP 2:
+
+Start NestJS API.
+
+STEP 3:
+
+Start Next.js frontend.
+
+STEP 4:
+
+Open Owner Dashboard.
+
+STEP 5:
+
+Open Customer QR.
+
+STEP 6:
+
+Scan QR using a different physical phone/device.
+
+STEP 7:
+
+Customer sees the Food Cart menu.
+
+STEP 8:
+
+Customer adds:
+
+Chicken Kothu Parotta × 2
+
+Lemon Soda × 1
+
+STEP 9:
+
+Customer opens Cart.
+
+Verify:
+
+₹120 × 2 = ₹240
+₹40 × 1 = ₹40
+
+Total = ₹280
+
+STEP 10:
+
+Customer clicks:
+
+Pay Now
+
+STEP 11:
+
+Backend creates:
+
+Customer
+Order
+Order Items
+Payment
+Status History
+
+STEP 12:
+
+Owner Live Order Board shows:
+
+NEW
+
+STEP 13:
+
+Owner clicks:
+
+Accept Order
+
+Order becomes:
+
+ACCEPTED
+
+STEP 14:
+
+Owner clicks:
+
+Start Preparing
+
+Order becomes:
+
+PREPARING
+
+STEP 15:
+
+Owner clicks:
+
+Mark Ready
+
+Order becomes:
+
+READY
+
+STEP 16:
+
+Owner clicks:
+
+Complete
+
+Order becomes:
+
+COMPLETED
+
+STEP 17:
+
+Order disappears from active Live Order Board.
+
+STEP 18:
+
+Order appears in Order History.
+
+STEP 19:
+
+Dashboard metrics update.
+
+STEP 20:
+
+Reports include the order.
+
+STEP 21:
+
+Customer/order information remains persisted after browser refresh.
+
+STEP 22:
+
+Open the application from another browser/device.
+
+Verify the same data exists.
+
+--------------------------------------------------
+# 59. PHASE 2 DEFINITION OF DONE
+--------------------------------------------------
+
+Phase 2 is NOT complete merely because PostgreSQL is connected.
+
+It is complete only when:
+
+[ ] PostgreSQL is running
+
+[ ] Prisma migrations work
+
+[ ] Seed data works
+
+[ ] Backend API works
+
+[ ] Frontend communicates with backend
+
+[ ] Products persist
+
+[ ] Categories persist
+
+[ ] Store settings persist
+
+[ ] QR points to real store ordering page
+
+[ ] Customer can browse real database products
+
+[ ] Customer can create an order
+
+[ ] Backend calculates the order total
+
+[ ] Order is persisted
+
+[ ] Payment record is persisted as simulated payment
+
+[ ] Stock is updated
+
+[ ] Order appears in Live Order Board
+
+[ ] Owner can accept order
+
+[ ] Owner can start preparation
+
+[ ] Owner can mark ready
+
+[ ] Owner can complete order
+
+[ ] Status history is recorded
+
+[ ] Completed order appears in Order History
+
+[ ] Dashboard metrics come from database
+
+[ ] Reports come from database
+
+[ ] CSV export works
+
+[ ] Product changes appear on customer page
+
+[ ] Data survives browser refresh
+
+[ ] Data works across different devices
+
+[ ] Store data is isolated
+
+[ ] API validation exists
+
+[ ] Basic authentication/authorization boundary exists
+
+[ ] Swagger/OpenAPI documentation exists
+
+[ ] Critical end-to-end workflow passes
+
+--------------------------------------------------
+# 60. FINAL ARCHITECTURE
+--------------------------------------------------
+
+The resulting architecture should be:
+
+                         ┌──────────────────┐
+                         │ Customer Mobile  │
+                         └────────┬─────────┘
+                                  │
+                                  │ QR
+                                  ▼
+                         ┌──────────────────┐
+                         │ Next.js Customer │
+                         └────────┬─────────┘
+                                  │
+                                  │ REST API
+                                  ▼
+┌──────────────────┐      ┌──────────────────┐
+│ Owner Dashboard  │─────▶│   NestJS API     │
+│    Next.js       │      │                  │
+└──────────────────┘      │ Domain Services  │
+                          │ Validation       │
+                          │ Authorization    │
+                          └────────┬─────────┘
+                                   │
+                                   │ Prisma
+                                   ▼
+                          ┌──────────────────┐
+                          │   PostgreSQL     │
+                          │                  │
+                          │ Stores           │
+                          │ Users            │
+                          │ Products         │
+                          │ Categories       │
+                          │ Customers        │
+                          │ Orders           │
+                          │ Order Items      │
+                          │ Payments         │
+                          │ Status History   │
+                          │ Printers         │
+                          │ Settings         │
+                          └──────────────────┘
+
+Future integrations should plug into the backend:
+
+                    NestJS
+                       │
+        ┌──────────────┼──────────────┐
+        ▼              ▼              ▼
+    Razorpay        WhatsApp       Printers
+    Payment         Messages       Hardware
+
+Do not implement these future integrations now.
+
+--------------------------------------------------
+# FINAL INSTRUCTION
+--------------------------------------------------
+
+Do not treat Phase 2 as "just adding a database."
+
+Treat Phase 2 as the transition from:
+
+FUNCTIONAL FRONTEND PROTOTYPE
+
+to:
+
+FULLY PERSISTED, MULTI-DEVICE, END-TO-END FOOD CART APPLICATION.
+
+Preserve the Phase 1 UI.
+
+Do not unnecessarily redesign it.
+
+Make the existing workflow actually work.
+
+The final product must allow a real Food Cart owner to configure products,
+generate a QR, receive customer orders, process those orders through the
+Live Order Board, complete them, and view the resulting history and
+performance data.

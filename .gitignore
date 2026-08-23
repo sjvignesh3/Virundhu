@@ -24,9 +24,6 @@ packages/shared/dist/
 apps/web/.next/
 apps/web/out/
 
-# Generic build dirs
-**/build/
-**/dist/
 # Keep migration SQL files (they ARE source-controlled)
 !apps/api/prisma/migrations/**/migration.sql
 !apps/api/prisma/migrations/migration_lock.toml
@@ -40,7 +37,6 @@ next-env.d.ts
 # ──────────────────────────────────────────────────────────────
 # Test / coverage artefacts
 # ──────────────────────────────────────────────────────────────
-coverage/
 **/coverage/
 .nyc_output/
 lcov.info
@@ -101,7 +97,8 @@ desktop.ini
 
 # VS Code (keep recommended extensions / settings if desired)
 # .vscode/           ← commented out so team settings can be shared
-.vscode/settings.json   # personal overrides — never shared
+# Personal per-user overrides — never shared
+.vscode/settings.json
 .vscode/*.code-workspace
 
 # Vim / Emacs swap files
@@ -142,7 +139,6 @@ storybook-static/
 
 # Playwright / Cypress
 playwright-report/
-test-results/
 cypress/videos/
 cypress/screenshots/
 

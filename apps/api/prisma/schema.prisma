@@ -1,0 +1,273 @@
+// Cart SaaS — Phase 2 schema
+//
+// Design notes:
+// - Every business-owned table is scoped to a Store for multi-tenancy.
+// - Enums are stored as strings (portable between SQLite dev and Postgres prod).
+//   Application layer validates values against the enum lists in @cartsas/shared.
+// - Money uses Decimal(10,2) in Postgres; SQLite falls back to Numeric which
+//   Prisma still surfaces as Decimal at the client. Marshalled to `number` on
+//   the API boundary by the ORM mapper layer.
+// - Order numbers are (storeId, orderNumber) unique — internal PK is UUID.
+// - Soft-delete via `isActive` for categories/products/printers/store users so
+//   historical order joins never break.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Users & Auth ----------
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  phone        String?
+  passwordHash String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships     StoreUser[]
+  statusChanges   OrderStatusHistory[]
+}
+
+// ---------- Store ----------
+
+model Store {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  tamilName   String?
+  description String?
+  phone       String?
+  address     String?
+  logoUrl     String?
+  imageUrl    String?
+  status      String   @default("OPEN") // StoreStatus enum: OPEN, CLOSED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       StoreUser[]
+  categories  Category[]
+  products    Product[]
+  customers   Customer[]
+  orders      Order[]
+  printers    Printer[]
+  settings    StoreSettings?
+  orderSeq    OrderSequence?
+
+  @@index([slug])
+}
+
+model StoreUser {
+  id        String   @id @default(uuid())
+  storeId   String
+  userId    String
+  role      String   @default("STAFF") // StoreRole enum: OWNER, MANAGER, STAFF
+  createdAt DateTime @default(now())
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, userId])
+  @@index([storeId])
+  @@index([userId])
+}
+
+model StoreSettings {
+  id                          String   @id @default(uuid())
+  storeId                     String   @unique
+  defaultLanguage             String   @default("en") // Language enum: en, ta
+  showTamilNames              Boolean  @default(true)
+  showUnavailable             Boolean  @default(false)
+  acceptOrders                Boolean  @default(true)
+  minimumOrderValue           Decimal  @default(0) // Decimal(10,2) in Postgres
+  estimatedPreparationMinutes Int      @default(15)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+// ---------- Menu ----------
+
+model Category {
+  id           String   @id @default(uuid())
+  storeId      String
+  name         String
+  tamilName    String?
+  description  String?
+  displayOrder Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([storeId, name])
+  @@index([storeId])
+}
+
+model Product {
+  id                String   @id @default(uuid())
+  storeId           String
+  categoryId        String
+  name              String
+  tamilName         String?
+  description       String?
+  tamilDescription  String?
+  price             Decimal  // Decimal(10,2) in Postgres; validated >= 0 in service
+  unit              String   // Unit enum: plate, piece, cup, glass, bottle, kg, g
+  imageUrl          String?
+  isAvailable       Boolean  @default(true)
+  stockQuantity     Decimal?
+  lowStockThreshold Decimal?
+  displayOrder      Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  store      Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category   Category    @relation(fields: [categoryId], references: [id])
+  orderItems OrderItem[]
+
+  @@index([storeId])
+  @@index([categoryId])
+  @@index([storeId, isAvailable])
+}
+
+// ---------- Customers ----------
+
+model Customer {
+  id        String   @id @default(uuid())
+  storeId   String
+  name      String?
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store  Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@index([storeId, phone])
+}
+
+// ---------- Orders ----------
+
+model Order {
+  id              String    @id @default(uuid())
+  storeId         String
+  customerId      String?
+  orderNumber     String
+  status          String    @default("NEW") // OrderStatus enum
+  paymentStatus   String    @default("PENDING") // PaymentStatus enum
+  paymentMethod   String    @default("SIMULATED") // PaymentMethod enum
+  subtotal        Decimal
+  discountAmount  Decimal   @default(0)
+  taxAmount       Decimal   @default(0)
+  totalAmount     Decimal
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+
+  store    Store                @relation(fields: [storeId], references: [id])
+  customer Customer?            @relation(fields: [customerId], references: [id])
+  items    OrderItem[]
+  history  OrderStatusHistory[]
+  payments Payment[]
+
+  @@unique([storeId, orderNumber])
+  @@index([storeId])
+  @@index([storeId, status])
+  @@index([storeId, createdAt])
+  @@index([customerId])
+}
+
+// Historical snapshot: productId is nullable because the product may be
+// deleted later but old orders must still be readable. name/unit/unitPrice
+// are frozen at order-creation time.
+model OrderItem {
+  id                String   @id @default(uuid())
+  orderId           String
+  productId         String?
+  productName       String
+  productTamilName  String?
+  unit              String
+  unitPrice         Decimal
+  quantity          Decimal
+  subtotal          Decimal
+  createdAt         DateTime @default(now())
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+}
+
+model OrderStatusHistory {
+  id              String   @id @default(uuid())
+  orderId         String
+  fromStatus      String?  // null on initial creation
+  toStatus        String
+  changedByUserId String?
+  note            String?
+  createdAt       DateTime @default(now())
+
+  order         Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedByUser User? @relation(fields: [changedByUserId], references: [id])
+
+  @@index([orderId])
+}
+
+model Payment {
+  id                String   @id @default(uuid())
+  orderId           String
+  provider          String   @default("SIMULATED") // PaymentProvider enum
+  providerPaymentId String?
+  method            String   @default("SIMULATED") // PaymentMethod enum
+  status            String   @default("PENDING")   // PaymentStatus enum
+  amount            Decimal
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+// Monotonic per-store order number sequence. Updated inside the same
+// transaction as order creation so races between concurrent checkouts
+// never produce duplicate FC-XXXX numbers.
+model OrderSequence {
+  storeId   String   @id
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+// ---------- Printers ----------
+
+model Printer {
+  id               String   @id @default(uuid())
+  storeId          String
+  name             String
+  type             String   @default("THERMAL")  // PrinterType enum
+  connectionStatus String   @default("UNKNOWN")  // PrinterConnectionStatus enum
+  address          String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+}
