@@ -226,21 +226,20 @@ Following requirements §33. Progress log lives here.
 ## 10. Running the app locally
 
 **Prerequisites**
-- Node.js 20.x (managed via `nvm` — no sudo required).
-- `npm` 10.x (bundled with Node 20).
+- Node.js 20.x installed (verify: `node -v`).
+- `npm` 10.x (bundled with Node 20; verify: `npm -v`).
 
 **One-time setup**
 
-```bash
-cd /home/workspace/CartSas
-nvm use 20            # ensure Node 20 is active in this shell
-npm install           # installs all deps into ./node_modules
+```powershell
+cd d:\Tools\HotSpot\FoodCart
+npm install           # installs all deps into .\node_modules
 ```
 
 **Start the dev web server**
 
-```bash
-cd /home/workspace/CartSas
+```powershell
+cd d:\Tools\HotSpot\FoodCart
 npm run dev
 ```
 
@@ -289,13 +288,13 @@ See `Docs/AcceptanceTest.md` — the 28-step scenario from Requirements §32 wit
 
 **Port already in use?**
 
-```bash
+```powershell
 # 1) find the offender
-lsof -i :3000
+Get-NetTCPConnection -LocalPort 3000 | Select-Object OwningProcess
 # 2) kill any stuck Next dev process
-pkill -f "next dev"
+Stop-Process -Name node -Force
 # 3) or start on another port
-PORT=3001 npm run dev
+$env:PORT=3001; npm run dev
 ```
 
 ---
@@ -305,4 +304,4 @@ PORT=3001 npm run dev
 1. Read this file top-to-bottom.
 2. Check the progress table in §7 — pick up at the first non-✅ row.
 3. Verify workspace layout still matches §4; if drift, reconcile before coding.
-4. Run `npm run dev` from `/home/workspace/CartSas` (see §10 for the full checklist).
+4. Run `npm run dev` from `d:\Tools\HotSpot\FoodCart` (see §10 for the full checklist).
