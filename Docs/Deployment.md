@@ -60,11 +60,15 @@ The initial migration was regenerated in Postgres DDL (`TIMESTAMP(3)`, `DECIMAL(
 
 ### 1.3 `apps/api/package.json`
 
+Two scripts relevant to production:
+
 ```json
-"start:prod": "prisma migrate deploy && node dist/main.js"
+"start:prod":            "prisma migrate deploy && node dist/main.js",
+"prisma:migrate:deploy": "prisma migrate deploy"
 ```
 
-`migrate deploy` is the **non-interactive**, production-safe migration command. Render runs an equivalent in `render.yaml`, but this script also lets you run it locally against production if you ever need to.
+- **`start:prod`** — runs Prisma inside the `@cartsas/api` workspace, where the Prisma CLI is always on PATH. Used for local production smoke-tests.
+- **`prisma:migrate:deploy`** — called by Render's `startCommand` via `npm run prisma:migrate:deploy --workspace=@cartsas/api`. Delegating through `npm run --workspace=` guarantees the workspace's own `node_modules/.bin` is used, so the Prisma binary is always found regardless of npm hoisting behaviour on Render's build machines.
 
 ### 1.4 `apps/api/src/modules/health/*`
 
@@ -88,6 +92,16 @@ This means you set the env var once and every preview deploy just works.
 ### 1.6 `render.yaml`
 
 Repo-root blueprint. Declares one Render service (the API). Marks `DATABASE_URL` and `CORS_ORIGIN` as `sync: false` (paste in dashboard) and auto-generates `JWT_SECRET`.
+
+Key commands in the blueprint (both intentionally delegate into the workspace so Prisma is always on PATH):
+
+```yaml
+buildCommand: npm ci && npm run build:api
+startCommand: npm run prisma:migrate:deploy --workspace=@cartsas/api && node apps/api/dist/main.js
+```
+
+> **Why not `npx prisma generate` in the build command?**
+> `prisma generate` is already invoked automatically by `@prisma/client`'s postinstall hook during `npm ci`, and again as part of `nest build`. Adding a third `npx prisma generate` at the repo root was redundant **and** unreliable — `npx` at the repo root cannot guarantee it resolves the binary from `apps/api/node_modules/.bin/` rather than a stale global install. Removing it makes the build deterministic.
 
 ### 1.7 `apps/web/vercel.json`
 
