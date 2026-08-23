@@ -73,7 +73,7 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
               <ChefHat className="h-5 w-5" />
             </div>
             <div className="flex flex-col">
-              <span className="text-sm font-semibold leading-none">CartSas</span>
+              <span className="text-sm font-semibold leading-none">Virundhu</span>
               <span className="text-xs text-muted-foreground">Owner Console</span>
             </div>
           </div>

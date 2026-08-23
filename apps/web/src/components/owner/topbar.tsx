@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Menu, Search, Bell, LogOut } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { MobileDrawer } from "@/components/owner/mobile-drawer";
@@ -15,17 +15,22 @@ function useCurrentTitle() {
   const match = ownerNav.find(
     (i) => pathname === i.href || pathname.startsWith(i.href + "/"),
   );
-  return match?.label ?? "CartSas";
+  return match?.label ?? "Virundhu";
 }
 
 export function OwnerTopBar() {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const title = useCurrentTitle();
-  const router = useRouter();
 
   function handleLogout() {
     apiLogout();
-    router.replace("/login");
+    // Hard navigation resets in-memory React state (repo caches, useCollection
+    // results, session listeners) so the login page renders from a clean slate.
+    // `router.replace` alone kept the (owner) layout mounted, causing the
+    // "stuck on dashboard with zeroed data" symptom.
+    if (typeof window !== "undefined") {
+      window.location.assign("/login");
+    }
   }
 
   return (

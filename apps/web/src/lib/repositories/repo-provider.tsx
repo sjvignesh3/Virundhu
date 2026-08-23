@@ -54,9 +54,10 @@ export function useRepos(): Repos | null {
  * Change detection:
  *   - `local` backend  → subscribes to the event-bus for same-tab writes and
  *     the `storage` event for cross-tab writes.
- *   - `api` backend    → polls every 5 seconds when `poll: true` is passed
- *     (used by the live-board). Manual writes call `refresh()` from a
- *     mutation handler to avoid full-tree re-fetches.
+ *   - `api` backend    → also subscribes to the event-bus so same-tab
+ *     mutations (e.g. creating a category) immediately trigger a re-fetch.
+ *     Additionally polls every 5 seconds when `poll: true` is passed
+ *     (used by the live-board) to pick up other-user writes.
  */
 export function useCollection<T>(
   collection: CollectionName,
@@ -69,17 +70,14 @@ export function useCollection<T>(
   const [error, setError] = React.useState<Error | null>(null);
   const [tick, setTick] = React.useState(0);
 
-  const loaderRef = React.useRef(loader);
-  React.useEffect(() => {
-    loaderRef.current = loader;
-  }, [loader]);
-
+  // We depend on `loader` identity so the fetch re-runs whenever the caller's
+  // captured deps (e.g. the current store) change. Callers MUST memoize their
+  // loader with `useCallback` — otherwise every parent render will re-fetch.
   React.useEffect(() => {
     if (!repos) return;
     let cancelled = false;
     setLoading(true);
-    loaderRef
-      .current(repos)
+    loader(repos)
       .then((d) => {
         if (!cancelled) {
           setData(d);
@@ -95,11 +93,14 @@ export function useCollection<T>(
     return () => {
       cancelled = true;
     };
-  }, [repos, collection, tick]);
+  }, [repos, collection, tick, loader]);
 
-  // Local backend: subscribe to storage events.
+  // Subscribe to the in-memory event-bus for both backends. In local mode
+  // this catches same-tab localStorage writes; in api mode it catches the
+  // emit() calls the API repos fire after successful mutations so newly
+  // created rows appear without a manual reload.
   React.useEffect(() => {
-    if (!repos || chosenBackend() !== "local") return;
+    if (!repos) return;
     return subscribe(collection, () => setTick((t) => t + 1));
   }, [repos, collection]);
 

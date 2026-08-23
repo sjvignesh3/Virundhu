@@ -12,9 +12,14 @@ const nextConfig = {
    * rewrite block and rely on CORS + the NEXT_PUBLIC_API_URL env var.
    */
   async rewrites() {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+    // Server-side-only target for the rewrite (never sent to the browser).
+    // Falls back to NEXT_PUBLIC_API_URL only when it is an absolute URL
+    // (i.e. not already pointing back at "/proxy-api", which would loop).
+    const publicUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
+    const fallback = /^https?:\/\//.test(publicUrl) ? publicUrl : "http://localhost:4000/api";
+    const apiUrl = process.env.API_PROXY_TARGET ?? fallback;
     // Strip trailing /api so we can append the path cleanly.
-    const apiBase = apiUrl.replace(/\/api$/, "");
+    const apiBase = apiUrl.replace(/\/api\/?$/, "");
     return [
       {
         source: "/proxy-api/:path*",

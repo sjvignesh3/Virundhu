@@ -18,11 +18,11 @@ const notoTamil = Noto_Sans_Tamil({
 
 export const metadata: Metadata = {
   title: {
-    default: "CartSas — Food Cart Ordering & Operations",
-    template: "%s · CartSas",
+    default: "Virundhu — Ordering & Operations for Food Businesses",
+    template: "%s · Virundhu",
   },
   description:
-    "A modern ordering and operations platform designed for food carts.",
+    "Virundhu — take QR orders, run your kitchen live, print bills, and understand your business, all from one dashboard.",
 };
 
 export const viewport: Viewport = {

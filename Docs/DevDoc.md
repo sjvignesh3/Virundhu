@@ -1,4 +1,6 @@
-# DevDoc — Cart SaaS (Phase 1 + Phase 2)
+# DevDoc — Virundhu (Phase 1 + Phase 2)
+
+> **Product name:** the platform is branded **Virundhu** ("விருந்து", the Tamil word for feast) across all user-facing surfaces (landing page, login, signup, owner console). Internal package identifiers (`@cartsas/shared`, `@cartsas/api`, `@cartsas/web`) and the `cartsas:v*` localStorage namespace are intentionally unchanged so existing code, schema names and stored sessions keep working.
 
 > Living memory of the current implementation. Updated every session.
 > Requirements source of truth: `Docs/RequirementPrompts/`.
@@ -9,17 +11,16 @@
 
 **Project root:** `/home/workspace/CartSas`
 
-**Phase 2 is COMPLETE. Version control (`.gitignore`) is configured.** The product is end-to-end usable with real data.
+**Phase 2 is COMPLETE. Owner self-signup is live.** The product is end-to-end usable with real data — new owners can now register from `/signup` and land on an empty (no-dummy-data) dashboard.
 
 ```
 CartSas/                        ← npm workspace root
 ├── apps/
 │   ├── api/                    ← NestJS backend (port 4000)
 │   │   ├── prisma/
-│   │   │   ├── schema.prisma   ← 12 models, SQLite dev / Postgres prod
-│   │   │   ├── migrations/     ← init migration
-│   │   │   ├── seed.ts         ← idempotent demo seed
-│   │   │   └── dev.db          ← SQLite file (git-ignored)
+│   │   │   ├── schema.prisma   ← 12 models · Postgres (dev + prod)
+│   │   │   ├── migrations/     ← init migration (Postgres DDL)
+│   │   │   └── seed.ts         ← idempotent demo seed
 │   │   └── src/
 │   │       ├── modules/        ← auth, stores, categories, products, orders,
 │   │       │                      payments, public, dashboard, reports,
@@ -45,19 +46,32 @@ CartSas/                        ← npm workspace root
 
 **Runtime:**
 - Node.js 20.x, npm 10.x
-- SQLite (dev) via Prisma
-- PostgreSQL-ready schema (one-line datasource swap)
+- PostgreSQL 16 (dev via Docker; prod via Neon serverless Postgres)
+- Deployment blueprint: `render.yaml` (Render web + web) · see `Docs/Deployment.md`
 
 ---
 
 ## 2. Product summary
 
-**A mobile-first Food Cart SaaS** for Tamil street-food owners. Two experiences share one codebase:
+**Virundhu** — a mobile-first ordering & operations platform for Tamil street-food owners, meat shops and small kitchens. Two experiences share one codebase:
 
 | Actor | Experience |
 |-------|-----------|
-| **Owner** | Logs in → Dashboard → Live Kanban board → order management → history, reports, QR, settings |
+| **Owner** | Signs up → Logs in → Dashboard → Live Kanban board → order management → history, reports, QR, settings |
 | **Customer** | Scans QR → `/order/[slug]` → menu → cart → Simulated Pay → confirmation |
+
+### Owner onboarding flow (new)
+
+```
+Landing/Login page
+  → "Create one" link → /signup
+  → Fills identity (name, email, password) + cart bootstrap (name, slug)
+  → NestJS: transactionally creates User + Store (OPEN) +
+             StoreUser(OWNER) + StoreSettings + OrderSequence
+             (NO seed categories/products/orders)
+  → JWT signed and returned → session persisted in localStorage
+  → Redirect to /dashboard (empty state, ready for real data)
+```
 
 ### Primary E2E flow (Phase 2 verified)
 
@@ -152,6 +166,27 @@ JwtAuthGuard → verifies Bearer token → populates req.user (AuthUser)
 StoreMembershipGuard → checks StoreUser(storeId, userId) exists → blocks cross-tenant access
 ```
 
+### Owner signup transaction
+
+Endpoint: `POST /api/auth/signup` (public, no auth).
+Request schema: `signupSchema` in `@cartsas/shared` — validates owner identity + store bootstrap (name + kebab-case slug).
+
+```typescript
+prisma.$transaction(async (tx) => {
+  1. Ensure email is unused          → EMAIL_ALREADY_USED (409, field: "email")
+  2. Ensure store slug is unused     → STORE_SLUG_TAKEN    (409, field: "storeSlug")
+  3. Create User (bcrypt-hashed password, isActive=true)
+  4. Create Store (status=OPEN)
+  5. Create StoreUser (role=OWNER)
+  6. Create StoreSettings (defaults: showTamilNames=true, acceptOrders=true, minOrder=0)
+  7. Create OrderSequence(storeId, nextValue=1)
+     ── NO Category / Product / Customer / Order rows are created ──
+})
+→ Sign JWT with same payload as login → return AuthLoginResponse
+```
+
+The response shape is **identical** to `/auth/login`, so the frontend reuses `saveSession()` and the caller lands on `/dashboard` with a real membership. The dashboard, live board, categories, and products pages all render their built-in empty states because no seed rows exist for the new tenant.
+
 ### Order creation transaction (§54)
 
 ```typescript
@@ -211,13 +246,13 @@ The interface is identical; `NEXT_PUBLIC_REPO_BACKEND=api` selects the backend a
 |------|---------|
 | `lib/api/client.ts` | `apiFetch<T>()` — attaches Bearer token, deserializes JSON, auto-logout on 401 |
 | `lib/api/adapters.ts` | DTO → frontend domain converters (isolates shape differences) |
-| `lib/api/auth-api.ts` | `apiLogin`, `apiLogout`, `apiCurrentSession` |
+| `lib/api/auth-api.ts` | `apiLogin`, `apiSignup`, `apiLogout`, `apiCurrentSession` |
 | `lib/api/session.ts` | JWT session persisted in `localStorage` key `cartsas:v2:auth` |
 | `lib/api/dashboard-api.ts` | `fetchDashboardMetrics`, `fetchReportsSummary` (API-side aggregation) |
 | `lib/repositories/api/` | `ApiStoreRepo`, `ApiCategoryRepo`, `ApiProductRepo`, `ApiOrderRepo` |
 | `lib/repositories/factory.ts` | `getRepos()` — backend selector + singleton cache |
 | `lib/repositories/repo-provider.tsx` | `RepoProvider`, `useRepos()`, `useCollection()` — React context + polling |
-| `components/auth/auth-guard.tsx` | Redirects to `/login` if no session (API mode only) |
+| `components/auth/auth-guard.tsx` | Redirects to `/login` if no session (API mode only); listens to `cartsas:auth` and `storage` events for reactive sign-out |
 
 ### `useCollection` hook
 
@@ -276,8 +311,29 @@ const { data, loading, error, refresh } = useCollection(
 | P2-26 | TypeScript clean — both apps | ✅ | `tsc --noEmit` passes both |
 | P2-27 | README.md — Phase 2 setup & API reference | ✅ | Full local-setup guide |
 | P2-28 | DevDoc.md — Phase 2 update | ✅ | This file |
+| P2-29 | Owner self-signup — schema + service + controller + tests | ✅ | Transactional; no dummy data |
+| P2-30 | `/signup` page + login-page link | ✅ | Slug auto-suggest, field-level errors |
+| P2-31 | Sign-out hard-nav + reactive AuthGuard | ✅ | `window.location.assign("/login")` tears down owner-layout state; guard listens to `cartsas:auth`/`storage` |
+| P2-32 | Rebrand user-facing UI → **Virundhu** | ✅ | Landing, login, signup, sidebar, drawer, topbar fallback, metadata |
+| P2-33 | Marketing landing page redesign | ✅ | Dark hero + mock Shop Owner Panel preview inspired by Kari Kadai; removed Phase-1 badge & Customer Menu card |
+| P2-34 | Postgres-only schema + `/api/health` + `render.yaml` + `Docs/Deployment.md` | ✅ | Provider switched from SQLite → Postgres; init migration rewritten in Postgres DDL; health module for Render probes; blueprint provisions API + web with Neon as the DB |
 
-**Total tests: 90 (36 API + 54 web)**
+**Total tests: 98 (40 API + 58 web)**
+
+### Sign-out flow (P2-31 detail)
+
+`OwnerTopBar → apiLogout()` clears `localStorage["cartsas:v2:auth"]` and
+dispatches the `cartsas:auth` event, then calls
+`window.location.assign("/login")` — a **hard** navigation. This is required
+because `router.replace("/login")` alone kept the `(owner)/layout.tsx` React
+tree mounted; the layout stayed on `/dashboard` but every `useCollection`
+call now hit an unauthenticated API and returned zeros. The hard-nav tears
+down the entire client tree so the login page renders from a clean slate.
+
+Belt-and-braces: `AuthGuard` now also subscribes to `cartsas:auth`
+(same-tab) and `storage` (cross-tab) events, so any code path that clears
+the session — 401 auto-logout in `apiFetch`, another tab logging out —
+still kicks the user to `/login` immediately.
 
 ---
 
@@ -318,6 +374,8 @@ All errors return:
 |------|--------|------|
 | `NOT_FOUND` | 404 | Resource doesn't exist |
 | `INVALID_CREDENTIALS` | 401 | Wrong email/password |
+| `EMAIL_ALREADY_USED` | 409 | Signup with an email that already has an account (details.field=`email`) |
+| `STORE_SLUG_TAKEN` | 409 | Signup with a store slug already in use (details.field=`storeSlug`) |
 | `UNAUTHORIZED` | 401 | Missing/expired token |
 | `FORBIDDEN` | 403 | User is not a member of the store |
 | `STORE_CLOSED` | 409 | Store.status = CLOSED at order time |
@@ -359,23 +417,41 @@ cd CartSas && npm install
 cp apps/api/.env.example apps/api/.env       # Edit JWT_SECRET
 cp apps/web/.env.example apps/web/.env.local  # Edit NEXT_PUBLIC_API_URL if needed
 
-# Database
-npm run db:migrate   # creates SQLite dev.db
+# Database — Postgres 16 required (SQLite no longer supported)
+# Fastest path (Docker):
+docker run -d --name virundhu-pg -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=virundhu -p 5432:5432 -v virundhu-pg-data:/var/lib/postgresql/data postgres:16
+
+npm run db:migrate   # applies Postgres migrations to the local DB
 npm run db:seed      # seeds Anna Street Food demo data
 
 # Start everything
 npm run dev          # API on :4000 | Web on :3000
 ```
 
-**Owner login:** `owner@anna.test` / `owner123`
+**Owner signup (new tenant, empty account):** http://localhost:3000/signup
+**Owner login (seeded demo):** `owner@anna.test` / `owner123`
 **Customer page:** http://localhost:3000/order/anna-street-food
 **Swagger docs:** http://localhost:4000/api/docs
+**Health check:** http://localhost:4000/api/health
+
+---
+
+## 11a. Hosting
+
+Production is a **Render Blueprint** (`render.yaml`) that provisions two web
+services (`virundhu-api`, `virundhu-web`) both in Singapore, wired to a
+**Neon** serverless Postgres database. See **`Docs/Deployment.md`** for the
+full walk-through — including the file-level changes already applied
+(Postgres provider, health endpoints, `start:prod` with `migrate deploy`),
+the Neon setup, Render environment variables, verification steps, backups,
+and custom-domain configuration.
 
 ---
 
 ## 12. Test coverage summary
 
-### Backend (Jest) — 36 tests, 6 suites
+### Backend (Jest) — 40 tests, 6 suites
 
 | Suite | Tests | What's covered |
 |-------|-------|----------------|
@@ -383,7 +459,7 @@ npm run dev          # API on :4000 | Web on :3000
 | `orders.service.spec.ts` | 6 | Order creation: happy path, empty cart, store closed, cross-store product, unavailable product, insufficient stock, below-minimum |
 | `categories.service.spec.ts` | 6 | List, create, update 404, remove 404, blocked delete, clean delete |
 | `products.service.spec.ts` | 8 | List, create with tenant-safe category, cross-store reject, 404, soft/hard delete, availability, Decimal→number mapping |
-| `auth.service.spec.ts` | 5 | Login happy path, wrong password, unknown user, inactive user, no passwordHash leak |
+| `auth.service.spec.ts` | 9 | **Login** (5): happy path, wrong password, unknown user, inactive user, no passwordHash leak. **Signup** (4): creates full tenant with zero dummy data, rejects duplicate email, rejects duplicate slug, hashes password |
 | `public.service.spec.ts` | 5 | Store by slug, 404 slug, products (available only, include unavailable), categories |
 
 ### Frontend (Vitest) — 54 tests, 6 suites
@@ -486,7 +562,7 @@ npm run dev              # start API :4000 + Web :3000
 ## 15. How to resume next session
 
 1. Read this file top-to-bottom.
-2. Run `npm test` from the repo root — expect 90 tests passing.
+2. Run `npm test` from the repo root — expect 94 tests passing (40 API + 54 web).
 3. Run `npm run db:seed` if the dev.db is missing or stale.
 4. Start with `npm run dev`.
 5. Pick the next phase from §13.

@@ -2,6 +2,7 @@ import type { StoreDTO, StoreSettingsDTO, PublicStoreDTO } from "@cartsas/shared
 import type { Store, StoreDraft, ID } from "@/lib/domain/types";
 import { apiFetch } from "@/lib/api/client";
 import { storeFromApi } from "@/lib/api/adapters";
+import { emit } from "@/lib/storage/event-bus";
 import type { StoreRepo } from "../types";
 
 export class ApiStoreRepo implements StoreRepo {
@@ -70,6 +71,7 @@ export class ApiStoreRepo implements StoreRepo {
       );
     }
     await Promise.all(promises);
+    emit("stores");
     return this.get(id);
   }
 }

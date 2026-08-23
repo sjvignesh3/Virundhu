@@ -22,7 +22,16 @@ export async function apiFetch<TResp, TBody = unknown>(
   path: string,
   opts: FetchOptions<TBody> = {},
 ): Promise<TResp> {
-  const url = new URL(`${API_BASE_URL}${path}`);
+  const isRelative = !/^https?:\/\//i.test(API_BASE_URL);
+  const base = isRelative
+    ? typeof window !== "undefined"
+      ? window.location.origin
+      : (process.env.API_PROXY_TARGET ?? "http://localhost:4000/api").replace(
+          /\/api\/?$/,
+          "",
+        )
+    : undefined;
+  const url = new URL(`${API_BASE_URL}${path}`, base);
   if (opts.query) {
     for (const [k, v] of Object.entries(opts.query)) {
       if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
