@@ -1,3 +1,4 @@
+import { Toaster } from "sonner";
 import { OwnerSidebar } from "@/components/owner/sidebar";
 import { OwnerTopBar } from "@/components/owner/topbar";
 import { MobileTabBar } from "@/components/owner/mobile-tabbar";
@@ -23,6 +24,7 @@ export default function OwnerLayout({
           </main>
         </div>
         <MobileTabBar />
+        <Toaster position="top-right" richColors closeButton />
       </div>
     </RepoProvider>
   );
