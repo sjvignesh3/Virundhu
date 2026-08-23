@@ -191,11 +191,11 @@ Following requirements §33. Progress log lives here.
 | 11 | Live Order Board (Kanban)                     | ✅      | `src/app/(owner)/orders/live/page.tsx` — 4-column responsive Kanban (NEW → ACCEPTED → PREPARING → READY) driven by `useCollection('orders', …)`, cross-tab reactive. Live "N minutes ago" via `useTicker(30s)` + `formatElapsed`. Tap a card → `OrderDetailSheet` (right sheet) surfaces only valid next statuses computed from `nextValidStatuses`; each action goes through `repos.orders.transition` which re-validates via `canTransition`. Toasts on success/failure via `sonner`. Cancel action guarded by `ConfirmDialog`. Empty-state when queue is clear. |
 | 12 | Order History                                 | ✅      | `src/app/(owner)/orders/history/page.tsx` — desktop table + mobile list showing COMPLETED + CANCELLED orders. Search across order number / customer name / phone; date range toggles (Today / 7d / 30d / All) map to `OrderRepo.list({ from })`. Reuses `OrderStatusBadge` and `OrderDetailSheet` (read-only for terminal states). Header shows filtered order count + total revenue badge. |
 | 13 | Dashboard metrics wired to real data          | ✅      | `src/lib/domain/dashboard-metrics.ts` — pure aggregators `computeTodayMetrics` (ordersToday / completedToday / activeOrders / revenueToday), `computeProductMetrics` (total/available/unavailable/lowStock/outOfStock), `computeTopItems` (aggregate COMPLETED order items → sort by qty). 9-case Vitest suite covers empty inputs, timezone-safe day boundary, active-vs-completed classification, low/out-of-stock rules, limit. Dashboard page rewritten as a client component that calls `useCollection('orders', …)` + `useCollection('products', …)`, memoizes metrics, and renders TODAY + MENU stat strips, Live Orders preview (uses `OrderStatusBadge` + `formatElapsed`), and Top Items sparkbars. Header greeting uses the actual store name; QR / Live Orders / Add Product quick actions in the header. |
-| 14 | Reports + CSV export                          | ⏳      | Reports summary + top items already live at `/reports` (revenue / orders / avg ticket / cancel rate over Today/7d/30d/All). CSV export not yet wired. |
-| 15 | QR code modal + print poster                  | ⏳      | `/qr` route already generates a scannable PNG QR from `window.location.origin + /order/{slug}` via `qrcode` library, plus Copy Link / Download PNG / Open. Print-poster route still to build. |
-| 16 | Settings + Printers placeholder               | ☐       |       |
-| 17 | Responsive / a11y / empty-loading-error pass  | ☐       |       |
-| 18 | Acceptance test walkthrough (§32)             | ☐       |       |
+| 14 | Reports + CSV export                          | ✅      | `src/lib/domain/csv.ts` — pure `ordersToCsv` with RFC 4180 quoting, UTF-8 BOM (so Excel opens ₹ / Tamil correctly), CRLF row separator, `\; `-joined item summary, `csvFilename('orders', range)` helper. 14-case Vitest suite in `csv.test.ts` covers empty list, safe/unsafe cells, embedded quotes/newlines/commas, multi-item summarisation, missing customer fields, item quantity totals. Reports page action bar now has `Export CSV` — builds a Blob from the same order list the on-screen cards render, `URL.createObjectURL` + hidden `<a>` triggers download; disabled + toast when window has 0 orders. |
+| 15 | QR code modal + print poster                  | ✅      | Extracted QR generation into `src/features/qr/use-qr.ts` (`useQr` hook + `buildOrderUrl` pure helper) so the same logic serves the `/qr` page, the poster, and any future surface (Requirements §15 reusability rule). New `/qr/poster` route renders `QrPoster` (A5 layout: cart name + Tamil name, "Scan to Order" headline, high-EC QR at 1024 px, human-readable URL, phone). Scoped print CSS neutralises the owner shell + main-padding + toolbar, sets `@page A5 margin 8mm`. `/qr` page gained a "Print poster" button that links to it. |
+| 16 | Settings + Printers                           | ✅      | Settings page (`/settings`) covers Profile / Contact / Ordering / Display — cart name + Tamil name, slug (auto-lowercased + dash-normalised), description, phone/address, `status OPEN/CLOSED` toggle, min-order & prep-time, `showTamilNames` and `showUnavailable` toggles (last one was missing until this step). Dirty-tracking `Saved` / `Unsaved changes` badges + toasts. Printers page (`/printers`) lists last 10 orders and prints receipts via a hidden `<Receipt>` component + `window.print()` with `body * { visibility: hidden }` isolation, 80 mm thermal-friendly layout. |
+| 17 | Responsive / a11y / empty-loading-error pass  | ✅      | Verified: `focus-visible:ring-2 ring-ring` on Button/Input/Textarea/Switch/Select/Dialog/Sheet/Badge; every icon button has `aria-label` (audited 34 sites); `role="alert"` on form errors; `<img>` tags carry descriptive `alt`. Added `src/app/(owner)/error.tsx` (segment error boundary with `reset()` + "Back to dashboard"), `src/app/order/[storeSlug]/error.tsx` (customer-friendly retry), `src/app/not-found.tsx` (global 404 with home/dashboard CTAs). Loading skeletons already existed in `src/app/(owner)/loading.tsx` + `/order/[slug]/loading.tsx`. Mobile: sidebar hides at `md:`, `MobileTabBar` renders on small screens, cards stack via responsive grid utilities across all owner routes. |
+| 18 | Acceptance test walkthrough (§32)             | ✅      | `Docs/AcceptanceTest.md` — 28-step scenario table cross-linked to the implementation step that satisfies each row, environment setup, seed-reset instructions, and a Vitest coverage snapshot (54 tests across 6 suites: order-number, totals, order-status, order-service, dashboard-metrics, csv). Ran the walkthrough end-to-end against `npm run dev`; all 12 owner + customer routes serve 200; TypeScript clean; production build produces 15 routes (12 owner + `/qr/poster` + customer menu + customer success). Regression protocol lists the five modules whose changes trigger a full re-run. |
 
 **Legend:** ☐ not started · ⏳ in progress · ✅ done · ⚠️ blocked
 
@@ -251,8 +251,9 @@ npm run dev
   - Categories: http://localhost:3000/categories
   - Live Orders: http://localhost:3000/orders/live
   - Order History: http://localhost:3000/orders/history
-  - Reports: http://localhost:3000/reports
+  - Reports: http://localhost:3000/reports  *(has CSV export)*
   - QR Code: http://localhost:3000/qr
+  - QR Poster (print-friendly A5): http://localhost:3000/qr/poster
   - Printers: http://localhost:3000/printers
   - Settings: http://localhost:3000/settings
 - Customer menu (Anna Street Food seed): http://localhost:3000/order/anna-street-food
@@ -273,12 +274,18 @@ npm run dev
 | `npm run build`         | Production build. Verifies types + static generation. |
 | `npm run start`         | Serve the production build (requires `build` first). |
 | `npm run lint`          | ESLint (next-lint) on the whole workspace.           |
-| `npm test`              | Run the Vitest suite once (currently 40 tests).      |
+| `npm test`              | Run the Vitest suite once (currently 54 tests).      |
 | `npm run test:watch`    | Vitest in watch mode while iterating on domain code. |
 
 **Resetting the demo data**
 The app persists everything in `localStorage` under `cartsas:v1:*` keys.
 To wipe orders and re-seed the demo store, open DevTools → Application → Local Storage → clear the origin and reload; `seedIfNeeded` will re-populate the store + categories + products (existing orders are cleared but the counter for `FC-XXXX` resets too).
+
+**"New product" button on `/products` looks disabled?**
+The button is only disabled while no store is loaded. If your `categories` collection is empty (e.g. you manually cleared it), the page swaps in a *"Create category first"* button that deep-links to `/categories`. Create at least one category and the *New product* action returns automatically.
+
+**Full acceptance walkthrough**
+See `Docs/AcceptanceTest.md` — the 28-step scenario from Requirements §32 with per-row expected results.
 
 **Port already in use?**
 

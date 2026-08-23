@@ -3,12 +3,14 @@
 import * as React from "react";
 import {
   BarChart3,
+  Download,
   IndianRupee,
   Loader2,
   ShoppingBag,
   TrendingUp,
   XCircle,
 } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/owner/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +18,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useCollection } from "@/lib/repositories/repo-provider";
 import { useDemoStore } from "@/lib/hooks/use-demo-store";
 import type { Order } from "@/lib/domain/types";
+import { csvFilename, ordersToCsv } from "@/lib/domain/csv";
 import { formatCurrency, cn } from "@/lib/utils";
 
 type Range = "today" | "7d" | "30d" | "all";
@@ -96,24 +99,56 @@ export default function ReportsPage() {
     );
   }
 
+  function handleExport() {
+    const list = orders ?? [];
+    if (list.length === 0) {
+      toast.info("Nothing to export in this window.");
+      return;
+    }
+    const csv = ordersToCsv(list);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = csvFilename("orders", range);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // Free the blob URL on the next tick (safe after click).
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    toast.success(`Exported ${list.length} order${list.length === 1 ? "" : "s"}`);
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Reports"
         description="Revenue, orders, and best-sellers over your chosen window."
         actions={
-          <div className="flex flex-wrap gap-1 rounded-md border bg-muted/30 p-1">
-            {(Object.keys(RANGE_LABEL) as Range[]).map((r) => (
-              <Button
-                key={r}
-                size="sm"
-                variant={range === r ? "default" : "ghost"}
-                onClick={() => setRange(r)}
-                className={cn("h-7 text-xs", range === r && "shadow-sm")}
-              >
-                {RANGE_LABEL[r]}
-              </Button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap gap-1 rounded-md border bg-muted/30 p-1">
+              {(Object.keys(RANGE_LABEL) as Range[]).map((r) => (
+                <Button
+                  key={r}
+                  size="sm"
+                  variant={range === r ? "default" : "ghost"}
+                  onClick={() => setRange(r)}
+                  className={cn("h-7 text-xs", range === r && "shadow-sm")}
+                >
+                  {RANGE_LABEL[r]}
+                </Button>
+              ))}
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleExport}
+              disabled={!orders || orders.length === 0}
+              title="Download filtered orders as CSV"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export CSV
+            </Button>
           </div>
         }
       />
