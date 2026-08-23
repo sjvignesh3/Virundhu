@@ -61,9 +61,9 @@ export class ApiOrderRepo implements OrderRepo {
     }
   }
 
-  async getByNumber(_storeId: ID, orderNumber: string): Promise<Order | null> {
+  async getByNumber(_storeId: ID, _orderNumber: string): Promise<Order | null> {
     // Frontend uses this only on the customer confirmation page — we route
-    // through the public endpoint so no auth is required.
+    // through the public endpoint (getPublicByNumber) so no auth is required.
     return null;
   }
 
