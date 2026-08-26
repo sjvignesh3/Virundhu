@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#e11d48" />
+    <!--
+      Preconnect to Supabase — saves ~50ms on the first Realtime/PostgREST
+      request by moving DNS + TLS handshake ahead of app-code discovery.
+      The URL is inlined at build time via a <script type="module"> after
+      env resolution isn't possible; hardcoding the project domain is a
+      known trade-off documented in Plan §4.3. If you rotate projects,
+      update this value or drop the hint (small perf loss, no correctness
+      impact).
+    -->
+    <link rel="preconnect" href="https://YOUR-PROJECT.supabase.co" crossorigin />
+    <link rel="dns-prefetch" href="https://YOUR-PROJECT.supabase.co" />
+    <title>Virundhu</title>
+  </head>
+  <body class="bg-neutral-50 text-neutral-900 antialiased">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

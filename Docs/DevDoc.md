@@ -1,6 +1,6 @@
 # DevDoc — Virundhu (Phase 1 + Phase 2)
 
-> **Product name:** the platform is branded **Virundhu** ("விருந்து", the Tamil word for feast) across all user-facing surfaces (landing page, login, signup, owner console). Internal package identifiers (`@cartsas/shared`, `@cartsas/api`, `@cartsas/web`) and the `cartsas:v*` localStorage namespace are intentionally unchanged so existing code, schema names and stored sessions keep working.
+> **Product name:** the platform is branded **Virundhu** ("விருந்து", the Tamil word for feast) across all user-facing surfaces (landing page, login, signup, owner console). Internal package identifiers (`@virundhu/shared`, `@cartsas/api`, `@cartsas/web`) and the `cartsas:v*` localStorage namespace are intentionally unchanged so existing code, schema names and stored sessions keep working.
 
 > Living memory of the current implementation. Updated every session.
 > Requirements source of truth: `Docs/RequirementPrompts/`.
@@ -101,7 +101,7 @@ Customer scans QR (another device)
 | Backend framework | NestJS 10 + TypeScript |
 | ORM | Prisma 5 |
 | Database | SQLite (dev) / PostgreSQL (prod) |
-| Validation | Zod schemas in `@cartsas/shared` (shared) + class-validator (NestJS) |
+| Validation | Zod schemas in `@virundhu/shared` (shared) + class-validator (NestJS) |
 | Auth | JWT (passport-jwt + @nestjs/jwt), bcryptjs |
 | API docs | Swagger/OpenAPI via @nestjs/swagger |
 | Testing (api) | Jest + ts-jest |
@@ -169,7 +169,7 @@ StoreMembershipGuard → checks StoreUser(storeId, userId) exists → blocks cro
 ### Owner signup transaction
 
 Endpoint: `POST /api/auth/signup` (public, no auth).
-Request schema: `signupSchema` in `@cartsas/shared` — validates owner identity + store bootstrap (name + kebab-case slug).
+Request schema: `signupSchema` in `@virundhu/shared` — validates owner identity + store bootstrap (name + kebab-case slug).
 
 ```typescript
 prisma.$transaction(async (tx) => {
@@ -225,7 +225,7 @@ NEW → ACCEPTED → PREPARING → READY → COMPLETED
 CANCELLED     CANCELLED   CANCELLED
 ```
 
-Both `canTransition` and `nextValidStatuses` live in `@cartsas/shared/transitions.ts` so frontend and backend share identical logic.
+Both `canTransition` and `nextValidStatuses` live in `@virundhu/shared/transitions.ts` so frontend and backend share identical logic.
 
 ---
 
@@ -342,7 +342,7 @@ still kicks the user to `/login` immediately.
 ### General
 
 - **Monorepo:** npm workspaces — `apps/api`, `apps/web`, `packages/shared`.
-- **Shared package:** `@cartsas/shared` — Zod schemas + DTOs + transitions. Never duplicated.
+- **Shared package:** `@virundhu/shared` — Zod schemas + DTOs + transitions. Never duplicated.
 - **Money:** `Decimal(10,2)` in DB; `decimalToNumber()` converts at the API boundary to `number`.
 - **IDs:** UUID everywhere. Order numbers are human-friendly `FC-XXXX` (monotonic per store).
 - **Soft delete:** Products with order history → `isAvailable=false`. Categories with products → blocked.

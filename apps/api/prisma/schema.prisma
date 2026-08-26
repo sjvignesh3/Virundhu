@@ -3,7 +3,7 @@
 // Design notes:
 // - Every business-owned table is scoped to a Store for multi-tenancy.
 // - Enums are stored as strings (portable between SQLite dev and Postgres prod).
-//   Application layer validates values against the enum lists in @cartsas/shared.
+//   Application layer validates values against the enum lists in @virundhu/shared.
 // - Money uses Decimal(10,2) in Postgres; SQLite falls back to Numeric which
 //   Prisma still surfaces as Decimal at the client. Marshalled to `number` on
 //   the API boundary by the ORM mapper layer.

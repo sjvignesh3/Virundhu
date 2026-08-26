@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { UpdateStoreInput, UpdateStoreSettingsInput } from "@cartsas/shared";
+import type { UpdateStoreInput, UpdateStoreSettingsInput } from "@virundhu/shared";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ApiException } from "../../common/errors/api.exception";
 import {

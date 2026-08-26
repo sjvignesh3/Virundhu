@@ -7,7 +7,7 @@ import {
   type OrderStatus,
   type PaginatedResponse,
   type OrderDTO,
-} from "@cartsas/shared";
+} from "@virundhu/shared";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ApiException } from "../../common/errors/api.exception";
 import { toOrderDTO } from "../../common/mappers/entities";

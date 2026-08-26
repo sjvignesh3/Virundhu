@@ -1,0 +1,5 @@
+.branches
+.temp
+.env
+functions/.env.local
+.env.local

@@ -3,7 +3,7 @@ import { ZodSchema, ZodError } from "zod";
 import { ApiException } from "../errors/api.exception";
 
 /**
- * Bridges Zod schemas from @cartsas/shared into NestJS controllers.
+ * Bridges Zod schemas from @virundhu/shared into NestJS controllers.
  * Usage: `@Body(new ZodValidationPipe(createProductSchema)) input: CreateProductInput`
  */
 @Injectable()

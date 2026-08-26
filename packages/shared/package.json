@@ -1,18 +1,27 @@
 {
-  "name": "@cartsas/shared",
-  "version": "0.2.0",
+  "name": "@virundhu/shared",
+  "version": "1.0.0",
   "private": true,
+  "description": "Shared API contracts, enums, Zod schemas and pure helpers used by the web app, the legacy NestJS API and the new Supabase backend (Deno).",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
       "default": "./dist/index.js"
-    }
+    },
+    "./deno": "./src/index.ts"
   },
+  "files": [
+    "dist",
+    "src",
+    "deno.json"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "zod": "^3.23.8"

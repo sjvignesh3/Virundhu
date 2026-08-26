@@ -8,7 +8,7 @@
  * loading / error / refresh pattern used everywhere else in the app.
  */
 
-import type { DashboardMetricsDTO, ReportsSummaryDTO } from "@cartsas/shared";
+import type { DashboardMetricsDTO, ReportsSummaryDTO } from "@virundhu/shared";
 import { apiFetch } from "./client";
 
 export async function fetchDashboardMetrics(storeId: string): Promise<DashboardMetricsDTO> {

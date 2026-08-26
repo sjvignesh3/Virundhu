@@ -14,7 +14,7 @@ import {
   updatePrinterSchema,
   type CreatePrinterInput,
   type UpdatePrinterInput,
-} from "@cartsas/shared";
+} from "@virundhu/shared";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { StoreMembershipGuard } from "../auth/store-membership.guard";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";

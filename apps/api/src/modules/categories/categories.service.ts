@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { CreateCategoryInput, UpdateCategoryInput } from "@cartsas/shared";
+import type { CreateCategoryInput, UpdateCategoryInput } from "@virundhu/shared";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ApiException } from "../../common/errors/api.exception";
 import { toCategoryDTO } from "../../common/mappers/entities";

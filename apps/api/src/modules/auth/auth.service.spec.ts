@@ -3,7 +3,7 @@ import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcryptjs";
 import { AuthService } from "./auth.service";
 import { PrismaService } from "../../prisma/prisma.service";
-import { API_ERROR_CODES } from "@cartsas/shared";
+import { API_ERROR_CODES } from "@virundhu/shared";
 
 const HASHED_PASSWORD = bcrypt.hashSync("owner123", 10);
 

@@ -1,4 +1,4 @@
-import type { OrderDTO, PaginatedResponse, PublicCreateOrderInput } from "@cartsas/shared";
+import type { OrderDTO, PaginatedResponse, PublicCreateOrderInput } from "@virundhu/shared";
 import type {
   ID,
   Order,

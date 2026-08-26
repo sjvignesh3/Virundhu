@@ -1,5 +1,5 @@
 import { HttpException, HttpStatus } from "@nestjs/common";
-import { API_ERROR_CODES, type ApiErrorCode, type ApiErrorBody } from "@cartsas/shared";
+import { API_ERROR_CODES, type ApiErrorCode, type ApiErrorBody } from "@virundhu/shared";
 
 /**
  * Every business error thrown by services extends ApiException. The

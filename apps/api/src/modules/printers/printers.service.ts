@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { CreatePrinterInput, UpdatePrinterInput } from "@cartsas/shared";
+import type { CreatePrinterInput, UpdatePrinterInput } from "@virundhu/shared";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ApiException } from "../../common/errors/api.exception";
 import { toPrinterDTO } from "../../common/mappers/entities";

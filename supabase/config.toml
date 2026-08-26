@@ -1,0 +1,70 @@
+# Supabase local & CI configuration.
+# Docs: https://supabase.com/docs/guides/local-development/cli/config
+project_id = "virundhu-cartsas"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+# Hard cap on PostgREST result rows — prevents accidental table scans from
+# blowing up latency or leaking too much data at once.
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 16
+
+[db.pooler]
+enabled = true
+port = 54329
+pool_mode = "transaction"
+default_pool_size = 20
+max_client_conn = 100
+
+[realtime]
+enabled = true
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000"]
+jwt_expiry = 3600
+enable_signup = false           # signup goes through the Edge Function so we can transactionally create the store
+enable_confirmations = false    # v1 parity: email confirmation deferred to Stage 5
+password_min_length = 8
+
+[auth.email]
+enable_signup = false
+double_confirm_changes = true
+enable_confirmations = false
+
+[edge_runtime]
+enabled = true
+policy = "per_worker"
+
+[analytics]
+enabled = false
+
+[functions.auth-signup]
+verify_jwt = false
+
+[functions.reports-sales-csv]
+verify_jwt = true
+
+# Called internally by pg_net (bearer = app.edge_secret GUC); no Supabase JWT.
+[functions.notify-order-transition]
+verify_jwt = false
+
+# Called by Razorpay; authenticated by the x-razorpay-signature HMAC, not a JWT.
+[functions.razorpay-webhook]
+verify_jwt = false

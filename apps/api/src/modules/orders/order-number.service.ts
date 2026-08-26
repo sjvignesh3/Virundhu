@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
-import { formatOrderNumber } from "@cartsas/shared";
+import { formatOrderNumber } from "@virundhu/shared";
 
 /**
  * Race-safe per-store sequence. Uses an `OrderSequence` row updated inside

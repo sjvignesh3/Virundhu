@@ -1,4 +1,4 @@
-import { canTransition, nextValidStatuses } from "@cartsas/shared";
+import { canTransition, nextValidStatuses } from "@virundhu/shared";
 
 /**
  * Pure unit tests over the shared state machine. OrderStatusService delegates

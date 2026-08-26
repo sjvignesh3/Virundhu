@@ -3,7 +3,7 @@
  *
  * These are the *only* place Prisma types cross into the API layer. All
  * controllers/services should return DTOs by running rows through these,
- * so the wire contract in @cartsas/shared/types.ts is authoritative.
+ * so the wire contract in @virundhu/shared/types.ts is authoritative.
  */
 
 import type {
@@ -44,7 +44,7 @@ import type {
   StoreRole,
   StoreStatus,
   Unit,
-} from "@cartsas/shared";
+} from "@virundhu/shared";
 import { decimalToNumber, optionalDecimalToNumber } from "./decimal";
 
 const iso = (d: Date): string => d.toISOString();

@@ -3,7 +3,7 @@ import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import {
   publicCreateOrderSchema,
   type PublicCreateOrderInput,
-} from "@cartsas/shared";
+} from "@virundhu/shared";
 import { PublicService } from "./public.service";
 import { OrdersService } from "../orders/orders.service";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";

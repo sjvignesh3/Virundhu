@@ -8,13 +8,13 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
-import type { OrderStatus } from "@cartsas/shared";
+import type { OrderStatus } from "@virundhu/shared";
 import {
   orderListQuerySchema,
   orderTransitionSchema,
   type OrderListQuery,
   type OrderTransitionInput,
-} from "@cartsas/shared";
+} from "@virundhu/shared";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { StoreMembershipGuard } from "../auth/store-membership.guard";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
