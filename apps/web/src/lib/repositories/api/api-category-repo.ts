@@ -1,4 +1,4 @@
-import type { CategoryDTO } from "@cartsas/shared";
+import type { CategoryDTO } from "@virundhu/shared";
 import type { Category, CategoryDraft, ID } from "@/lib/domain/types";
 import { apiFetch } from "@/lib/api/client";
 import { categoryFromApi } from "@/lib/api/adapters";

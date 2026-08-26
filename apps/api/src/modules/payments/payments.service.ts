@@ -5,7 +5,7 @@ import {
   type IPaymentProvider,
 } from "./payment-provider.interface";
 import { toPrismaDecimal } from "../../common/mappers/decimal";
-import type { PaymentMethod } from "@cartsas/shared";
+import type { PaymentMethod } from "@virundhu/shared";
 import { toPaymentDTO } from "../../common/mappers/entities";
 import { PrismaService } from "../../prisma/prisma.service";
 

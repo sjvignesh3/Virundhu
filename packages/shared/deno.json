@@ -1,0 +1,8 @@
+{
+  "name": "@virundhu/shared",
+  "version": "1.0.0",
+  "exports": "./src/index.ts",
+  "imports": {
+    "zod": "https://deno.land/x/zod@v3.23.8/mod.ts"
+  }
+}

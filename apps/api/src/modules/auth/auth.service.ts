@@ -2,10 +2,10 @@ import { Injectable } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { Prisma } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
-import type { AuthLoginResponse, LoginInput, SignupInput } from "@cartsas/shared";
+import type { AuthLoginResponse, LoginInput, SignupInput } from "@virundhu/shared";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ApiException } from "../../common/errors/api.exception";
-import { API_ERROR_CODES } from "@cartsas/shared";
+import { API_ERROR_CODES } from "@virundhu/shared";
 import { HttpStatus } from "@nestjs/common";
 import { toStoreMembershipDTO, toUserDTO } from "../../common/mappers/entities";
 

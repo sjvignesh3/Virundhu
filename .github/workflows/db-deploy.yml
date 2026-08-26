@@ -1,0 +1,201 @@
+name: db-deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/**"
+      - "packages/shared/**"
+      - "packages/client/**"
+      - "apps/spa/**"
+      - ".github/workflows/db-deploy.yml"
+  pull_request:
+    paths:
+      - "supabase/**"
+      - "packages/shared/**"
+      - "packages/client/**"
+      - "apps/spa/**"
+
+concurrency:
+  group: db-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────
+  # Shared package: typecheck + unit tests. Contracts must stay green
+  # before any migration touches the DB.
+  # ─────────────────────────────────────────────────────────────────
+  shared:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck --workspace=@virundhu/shared
+      - run: npm run test --workspace=@virundhu/shared --if-present
+
+  # ─────────────────────────────────────────────────────────────────
+  # Typed client data layer — must typecheck against the current
+  # @virundhu/shared build. Blocks `deploy` when column-projection
+  # discipline is violated (`.select('*')` grep).
+  # ─────────────────────────────────────────────────────────────────
+  client:
+    runs-on: ubuntu-latest
+    needs: shared
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck --workspace=@virundhu/client
+      - run: npm run test --workspace=@virundhu/client
+      - name: Column projection discipline (no `.select('*')`)
+        run: npm run lint:no-star-select --workspace=@virundhu/client
+
+  # ─────────────────────────────────────────────────────────────────
+  # SPA: typecheck, unit tests, production build, bundle budget.
+  # The TanStack Router Vite plugin regenerates `routeTree.gen.ts`
+  # automatically at build time — no separate codegen step needed.
+  # ─────────────────────────────────────────────────────────────────
+  spa:
+    runs-on: ubuntu-latest
+    needs: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build --workspace=@virundhu/spa
+      - run: npm run test --workspace=@virundhu/spa
+      - name: Enforce initial JS bundle budget (≤180 KB gz)
+        run: |
+          total=0
+          for f in apps/spa/dist/assets/*.js; do
+            size=$(gzip -c "$f" | wc -c)
+            total=$((total + size))
+          done
+          echo "Total gzipped JS: $total bytes"
+          if [ "$total" -gt 184320 ]; then
+            echo "::error::Bundle budget exceeded: ${total} bytes > 184320 bytes (180 KB gz)"
+            exit 1
+          fi
+
+  # ─────────────────────────────────────────────────────────────────
+  # SQL: replay every migration on a fresh Postgres, seed, run pgTAP,
+  # then confirm `db diff` reports zero drift.
+  # ─────────────────────────────────────────────────────────────────
+  sql:
+    runs-on: ubuntu-latest
+    needs: shared
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Boot local stack
+        run: supabase start --exclude studio,inbucket,imgproxy,storage-api,edge-runtime,realtime
+
+      - name: Run pgTAP suite
+        run: supabase test db
+
+      - name: Assert zero migration drift
+        run: |
+          diff_output=$(supabase db diff --schema public)
+          if [ -n "$diff_output" ]; then
+            echo "::error::Migration drift detected"
+            echo "$diff_output"
+            exit 1
+          fi
+
+  # ─────────────────────────────────────────────────────────────────
+  # Edge Functions: Deno lint + type-check + unit tests.
+  # ─────────────────────────────────────────────────────────────────
+  edge:
+    runs-on: ubuntu-latest
+    needs: shared
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.44.x
+      - run: deno lint supabase/functions
+      - run: deno check --import-map=supabase/import_map.json supabase/functions/**/*.ts
+      - name: Deno unit tests (Edge Function helpers)
+        run: deno test --allow-none --import-map=supabase/import_map.json supabase/functions/_shared/razorpay.test.ts
+
+  # ─────────────────────────────────────────────────────────────────
+  # Push to the linked Supabase project on merge to main.
+  # ─────────────────────────────────────────────────────────────────
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [sql, edge, client, spa]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Link project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      - name: Push migrations
+        run: supabase db push
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      - name: Deploy Edge Functions
+        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+
+  # ─────────────────────────────────────────────────────────────────
+  # Regenerate packages/shared/src/db-types.ts against the deployed
+  # project and commit the diff. Runs only after a successful deploy.
+  # Skips silently when the secrets are absent (fork PRs).
+  # ─────────────────────────────────────────────────────────────────
+  types-gen:
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Regenerate db-types.ts
+        run: |
+          supabase gen types typescript \
+            --project-id "$SUPABASE_PROJECT_REF" \
+            --schema public \
+            > packages/shared/src/db-types.ts
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      - name: Commit if changed
+        run: |
+          if ! git diff --quiet packages/shared/src/db-types.ts; then
+            git config user.name  "virundhu-ci"
+            git config user.email "ci@virundhu.local"
+            git add packages/shared/src/db-types.ts
+            git commit -m "chore(types): regenerate db-types.ts from schema"
+            git push
+          fi

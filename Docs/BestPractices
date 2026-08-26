@@ -1,0 +1,299 @@
+Moving your Next.js and NestJS codebase to Supabase to support 10–20 business owners on the free tier is a practical strategy. Because your target users are in Tamil Nadu, choosing the **AWS Mumbai (`ap-south-1`) region** during project setup will keep database query latency consistently below 50ms.
+
+Below are the primary pitfalls to avoid when migrating, followed by best practices to maximize free-tier performance and capacity.
+
+---
+
+### 1. Critical Migration Pitfalls & Anti-Patterns
+
+* **Connection Pooler Bypass (Port 5432 vs. Port 6543):**
+* *The Trap:* NestJS API instances or Vercel Serverless Functions opening direct connections to PostgreSQL (Port `5432`) will exhaust Supabase's free direct connection pool (~60 connections) under concurrent request spikes.
+
+
+* *The Fix:* Point your `DATABASE_URL` to Supabase's **Supavisor Transaction Pooler** (Port `6543`). Append `?pgbouncer=true` if using Prisma ORM to prevent connection bloat.
+
+
+
+
+* **Database Auto-Pausing Idle Risks:**
+* *The Trap:* Supabase automatically pauses projects on the free tier after 7 days of inactivity. If a vendor doesn't log in during a quiet week, the next customer opening their menu will trigger a database cold-start delay or request failure.
+
+
+* *The Fix:* Set up a lightweight, scheduled GitHub Action, Vercel Cron, or uptime ping service to run a `SELECT 1;` query every 48 hours to keep the project active.
+
+
+
+
+* **Missing Indexing on Multi-Tenant Foreign Keys:**
+* *The Trap:* If you use Row Level Security (RLS) or explicitly filter queries using `WHERE store_id = ...`, PostgreSQL will run full-table scans for every request if `store_id` is not indexed.
+
+
+* *The Fix:* Ensure every tenant-isolated table has an explicit index on `store_id`:
+
+
+```sql
+CREATE INDEX idx_orders_store_id ON "Order"(store_id);
+CREATE INDEX idx_products_store_id ON "Product"(store_id);
+CREATE INDEX idx_categories_store_id ON "Category"(store_id);
+
+```
+
+
+
+
+* **Client-Side Data Over-Fetching:**
+* *The Trap:* Calling Supabase or NestJS APIs from the frontend and fetching entire relational trees (`include: { items: true, customer: true }`) for simple dashboard summary cards quickly consumes your 5 GB monthly egress allowance.
+
+
+* *The Fix:* Write aggregated queries or PostgreSQL functions (`RPC`) to return only total counts or revenue figures rather than raw records.
+
+
+
+
+
+---
+
+### 2. Best Practices for Maximum Free-Tier Onboarding
+
+To host as many business owners as possible on the free tier without hitting limits, implement these structural patterns:
+
+#### A. Database & Schema Optimization
+
+* **Use Monotonic Sequence Columns for Human Order Numbers:** Instead of scanning past orders to calculate order numbers (e.g., `FC-1001`), keep using your `OrderSequence` model. Atomic increment operations consume minimal database compute.
+
+
+* **Enforce Soft Deletes Carefully:** Instead of deleting products with order histories, maintain your boolean flag (`isAvailable = false`). Avoid accumulating unnecessary historical logs in the database if they are not required for core operations.
+
+
+
+#### B. API & Backend Architecture
+
+* **Decommission Render Free Tier for Live Customer Requests:** Render's 15-minute inactivity spin-down introduces 30–50 second latency spikes. Move your NestJS logic or API route handlers directly onto **Vercel Serverless Functions** or Next.js App Router API endpoints. Vercel handles serverless executions with negligible cold starts.
+
+
+* **Consolidate Real-Time Requests:** Replace aggressive client-side HTTP polling (e.g., fetching `/orders/active` every 5 seconds) with **Supabase Realtime (WebSockets)** for active vendor dashboards. This reduces CPU usage and database queries on the server.
+
+
+
+#### C. Data Transfer & Storage Limits
+
+* **Image Assets Offloading:** Never store product images, logos, or menu banners inside PostgreSQL as base64 strings or BLOBs. Use Supabase Storage (500 MB free) or external services like Cloudflare R2 / Cloudinary, storing only the image URL string in the database.
+* **Set Connection Timeouts:** Configure strict connection timeout parameters in Prisma or your database client to release pooled connections immediately after query execution:
+```env
+DATABASE_URL="postgres://user:password@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=5"
+
+```
+
+
+
+---
+
+### 3. Migration Roadmap Checklist
+
+```
+[ ] Step 1: Create Supabase Project in AWS Mumbai (ap-south-1) region.
+[ ] Step 2: Extract pooled connection string (Port 6543) and set in environment variables.
+[ ] Step 3: Run `npx prisma migrate deploy` to create production tables.
+[ ] Step 4: Add B-Tree indexes on all foreign key columns (store_id, order_id, category_id).
+[ ] Step 5: Update NestJS/Next.js database client configuration to use connection pooling.
+[ ] Step 6: Configure automated 48-hour health-check ping to prevent project pausing.
+[ ] Step 7: Test order creation flow e2e and monitor connection metrics in Supabase Dashboard.
+
+```
+
+
+To scale **Virundhu** cleanly on the free tier without running into hidden limits, you need to know which features to avoid overusing and which underutilized features will save your budget.
+
+---
+
+### 1. Features That Should **NOT Be Overused**
+
+#### A. Supabase Realtime (Broadcasting & DB Changes)
+
+* **The Risk:** The free tier caps Realtime at **200 concurrent connections** and **2 million messages/month**. If every customer browsing `/order/[slug]` opens a persistent Realtime WebSocket connection, 20 customers on a busy weekend will exhaust your connection pool, causing connection refusals for the store owner's live Kanban board.
+
+
+* **How to Use Efficiently:**
+* **Restrict Realtime to the Owner Dashboard only** (where immediate order notifications matter).
+
+
+* Keep customer ordering on simple standard API calls (or Vercel Serverless HTTP requests) instead of WebSockets.
+
+
+
+#### B. Heavy Complex Queries via Client-Side PostgREST (`supabase-js`)
+
+* **The Risk:** Fetching multi-table joins on the client (e.g., `.from('orders').select('*, items(*), customers(*), payments(*)')`) forces Supabase to compile large JSON payloads. On a free shared database instance with ~500 MB RAM, doing this frequently burns database CPU and consumes your **5 GB monthly egress allowance** very quickly.
+* **How to Use Efficiently:** Select *only* explicitly required columns (e.g., `.select('id, status, total_amount')`) rather than using wildcard `*` fetches.
+
+#### C. Edge Functions as a General-Purpose API Backend
+
+* **The Risk:** Supabase Edge Functions include **500,000 free invocations per month**. If every button click, product list load, or static fetch triggers an Edge Function, you will exhaust your quota and face throttling.
+* **How to Use Efficiently:** Keep core API routes inside **Vercel Serverless Functions** (which handle Next.js App Router routes efficiently). Use Supabase Edge Functions *only* for specialized low-frequency tasks (like Razorpay webhook handlers or background scripts).
+
+
+
+---
+
+### 2. Features That Should **NOT Be Left Unused**
+
+#### A. Database Functions & Stored Procedures (`RPC`)
+
+* **Why You Need It:** Instead of running 3 sequential API queries to create an order, validate stock, and update customer stats, write a single **Postgres SQL Function (`CREATE FUNCTION create_order(...)`)**.
+
+
+* **Free-Tier Benefit:** Executing logic natively inside Postgres reduces network round-trips from 3 to 1, saves CPU memory, uses zero Edge Function calls, and guarantees atomic database transactions.
+
+
+
+#### B. Database Views for Dashboard Analytics
+
+* **Why You Need It:** Your owner dashboard needs summary metrics like "Today's Revenue", "Total Orders", and "Top Selling Items". If you query raw `Order` rows and calculate these metrics in JavaScript, you waste egress and client memory.
+
+
+* **Free-Tier Benefit:** Create a Postgres View or Materialized View:
+```sql
+CREATE VIEW store_daily_metrics AS
+SELECT store_id, COUNT(id) AS total_orders, SUM(total_amount) AS total_revenue
+FROM "Order"
+WHERE created_at >= CURRENT_DATE
+GROUP BY store_id;
+
+```
+
+
+Quering `supabase.from('store_daily_metrics').select('*')` returns a tiny 1-row summary payload, using almost zero database memory.
+
+#### C. Built-in Auth MetaData & JWT Claims
+
+* **Why You Need It:** When an owner logs in, your app needs to know their `store_id` to enforce multi-tenant isolation. Querying the `StoreUser` table on every API request to check store membership wastes database read ops.
+
+
+* **Free-Tier Benefit:** Attach `store_id` directly to the user's `app_metadata` during user signup. The `store_id` is embedded inside the JWT token itself, allowing your backend guards to verify tenant access instantly without hitting the database.
+
+
+
+#### D. Supabase Storage Transforms & WebP Options
+
+* **Why You Need It:** Vendors uploading high-resolution menu photos will quickly hit the **1 GB File Storage limit** and burn through egress.
+* **Free-Tier Benefit:** Pass transformation parameters when serving images (`/storage/v1/render/image/public/bucket/food.jpg?width=300&format=origin`) or compress images on the frontend before uploading to keep image files under 100 KB.
+
+---
+
+### Summary Checklist for Virundhu
+
+| Feature | Action Strategy |
+| --- | --- |
+| **Realtime** | **Limit it.** Use *only* for active owner order-management boards.
+
+ |
+| **Edge Functions** | **Minimize it.** Keep main API routes in Next.js/Vercel; use Edge Functions strictly for webhooks.
+
+ |
+| **Postgres RPC / Views** | **Maximize it.** Run multi-table writes and dashboard metric aggregates directly in database SQL.
+
+ |
+| **Auth JWT Metadata** | **Maximize it.** Store tenant IDs inside the JWT payload to eliminate redundant DB permission checks.
+
+ |
+
+
+
+
+ The proposal to port **Virundhu** from a multi-runtime system (NestJS on Render + Next.js on Vercel) to a single-tier **Vite (React) SPA + Supabase (Postgres + Auth + RLS + Edge Functions)** architecture is **architecturally sound, pragmatic, and highly suited for your operational scale**.
+
+The core issue you are experiencing—Render’s 30–50-second free/low-tier cold starts—is a common issue for transactional food ordering apps. Eliminating the mid-tier NestJS service drastically simplifies your system complexity, eliminates cold starts, enforces multi-tenancy natively through Row Level Security (RLS), and achieves your targets of **P95 < 250ms and $0–$25/mo operational costs**.
+
+---
+
+### Core Recommendations & Architecture Review
+
+**What You Got Right:**
+
+* **Bypassing NestJS:** NestJS is often overkill when Supabase PostgREST, SQL Views, and PL/pgSQL RPCs cover ~80% of CRUD and simple state transitions natively.
+
+
+* **Dropping Next.js (App Router/SSR) for Vite (SPA):** authenticated dashboards and dynamic QR menus do not derive significant value from SSR. Dropping Node.js runtime servers for Vercel/Cloudflare static assets removes serverless startup/execution costs and reduces bundle size.
+
+
+* **Preserving `@virundhu/shared`:** Sharing validation rules (Zod) and domain logic between client apps and Edge Functions ensures business logic stays synchronized.
+
+
+
+---
+
+### Suggested Optimizations & Tech Stack Adjustments
+
+**1. Router Choice: Upgrade to TanStack Router**
+
+* *Current Plan:* React Router 6.28+
+
+
+* *Recommendation:* **TanStack Router**. Since your app relies heavily on typed parameters (`/order/$slug`, `/owner/orders/$id`), TanStack Router provides 100% end-to-end type safety out of the box. It integrates seamlessly with TanStack Query (which you already use), eliminating runtime parameter bugs across store routes.
+
+
+
+**2. Form & Schema Logic: Ensure Single Execution Path**
+
+* *Current Plan:* Port complex domain logic (e.g., state machines like `transitions.ts`) to PL/pgSQL.
+
+
+* *Optimization:* **Keep state machine logic in TypeScript (Edge Functions) where practical.**
+While RPCs excel at low-latency ACID writes (e.g., allocating `FC-XXXX` numbers within transactions), maintaining complex business rules in PL/pgSQL can slow down long-term developer velocity. For multi-step procedures (like sending webhooks or payment verification), route through **Supabase Edge Functions** so you can directly import your `@virundhu/shared` TypeScript state machines. Reserve PL/pgSQL RPCs for atomic database updates.
+
+
+
+**3. Mitigation for Free Tier Cold Starts / Pausing**
+
+* *Current Plan:* Vercel Cron hits an Edge Function every 48 hours to prevent Supabase project pausing.
+
+
+* *Optimization:* Use **Supabase `pg_cron**` directly inside PostgreSQL rather than external HTTP cron calls. It runs natively within the database engine and avoids third-party trigger points:
+```sql
+select cron.schedule('keepalive-job', '0 0 * * *', $$SELECT 1$$);
+
+```
+
+
+
+**4. Public Menu Load Time Optimization**
+
+* *Current Plan:* Unauthenticated SPA fetching data on mount.
+
+
+* *Optimization:* Add **Stale-While-Revalidate (SWR)** caching at the CDN level. Define a Postgres View or single RPC returning the full menu JSON payload and serve it via PostgREST with HTTP cache headers:
+```
+Cache-Control: public, max-age=60, s-maxage=300, stale-while-revalidate=86400
+
+```
+
+
+This strategy lets 99% of customers in Chennai load menus directly from Vercel/Cloudflare Edge caches in **< 50ms**, eliminating database read latency completely.
+
+
+
+---
+
+### Key Trade-Offs to Monitor
+
+| Concern | Edge Functions (Deno) / PostgREST | NestJS / Dedicated API | Mitigating Strategy |
+| --- | --- | --- | --- |
+| **Vendor Lock-in** | High reliance on Supabase primitives (RLS, PostgREST, GoTrue).
+
+ | Portable to any Cloud provider or VPS. | Acceptable trade-off for speed and team capacity (<1 dev overhead goal). |
+| **Testing Strategy** | SQL testing via `pgTAP` requires dedicated DB test runners.
+
+ | Standard Vitest/Jest unit testing. | Run local Supabase containers in GitHub Actions to validate migrations and RLS policies on every PR.
+
+ |
+| **Connection Pooling** | Edge Functions execute concurrently and can exhaust DB connections.
+
+ | Controlled DB connection pool size. | Use Supabase’s built-in **Supavisor (Transaction Mode)** for connection pooling in Edge Functions.
+
+ |
+
+---
+
+### Final Verdict
+
+**Proceed with the port.** The architecture effectively addresses your main pain points (cold starts, multi-tenant safety, cost constraints, and developer velocity). By moving non-transactional code out of PL/pgSQL into typed Edge Functions and leveraging CDN caching for public routes, you establish a maintainable foundation capable of supporting hundreds of tenants with minimal overhead.

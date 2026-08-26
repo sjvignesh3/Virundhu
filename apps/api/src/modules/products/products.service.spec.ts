@@ -1,7 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ProductsService } from "./products.service";
-import { API_ERROR_CODES } from "@cartsas/shared";
+import { API_ERROR_CODES } from "@virundhu/shared";
 import { toPrismaDecimal } from "../../common/mappers/decimal";
 
 const makeProduct = (over: Record<string, unknown> = {}) => ({

@@ -1,4 +1,4 @@
-import { ApiError, type ApiErrorBody } from "@cartsas/shared";
+import { ApiError, type ApiErrorBody } from "@virundhu/shared";
 import { API_BASE_URL } from "./env";
 import { readSession, writeSession } from "./session";
 

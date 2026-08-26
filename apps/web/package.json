@@ -3,8 +3,8 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
-    "predev": "npm run build --workspace=@cartsas/shared",
-    "prebuild": "npm run build --workspace=@cartsas/shared",
+    "predev": "npm run build --workspace=@virundhu/shared",
+    "prebuild": "npm run build --workspace=@virundhu/shared",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -13,7 +13,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@cartsas/shared": "*",
+    "@virundhu/shared": "*",
     "@radix-ui/react-avatar": "^1.2.6",
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-dropdown-menu": "^2.1.24",

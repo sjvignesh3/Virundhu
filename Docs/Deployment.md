@@ -384,7 +384,7 @@ Vercel and Supabase do **not** have cold starts on the free tier.
 
 ## 12 · Troubleshooting
 
-### Vercel build fails: "Cannot find module '@cartsas/shared'"
+### Vercel build fails: "Cannot find module '@virundhu/shared'"
 
 - Root directory must be `apps/web`.
 - Confirm `apps/web/vercel.json` is committed (build command steps up to the monorepo root).

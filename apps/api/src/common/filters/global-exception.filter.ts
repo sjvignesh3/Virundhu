@@ -8,7 +8,7 @@ import {
 } from "@nestjs/common";
 import { Request, Response } from "express";
 import { Prisma } from "@prisma/client";
-import { API_ERROR_CODES, type ApiErrorBody } from "@cartsas/shared";
+import { API_ERROR_CODES, type ApiErrorBody } from "@virundhu/shared";
 import { ApiException } from "../errors/api.exception";
 
 /**

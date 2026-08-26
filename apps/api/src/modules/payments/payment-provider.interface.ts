@@ -1,4 +1,4 @@
-import type { PaymentMethod, PaymentProvider, PaymentStatus } from "@cartsas/shared";
+import type { PaymentMethod, PaymentProvider, PaymentStatus } from "@virundhu/shared";
 
 export const PAYMENT_PROVIDER = Symbol("PAYMENT_PROVIDER");
 

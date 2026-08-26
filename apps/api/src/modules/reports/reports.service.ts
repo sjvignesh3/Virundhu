@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import type { OrderStatus, ReportsSummaryDTO } from "@cartsas/shared";
-import { ORDER_STATUSES } from "@cartsas/shared";
+import type { OrderStatus, ReportsSummaryDTO } from "@virundhu/shared";
+import { ORDER_STATUSES } from "@virundhu/shared";
 import { PrismaService } from "../../prisma/prisma.service";
 import { decimalToNumber } from "../../common/mappers/decimal";
 

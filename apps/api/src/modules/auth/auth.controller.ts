@@ -5,7 +5,7 @@ import {
   signupSchema,
   type LoginInput,
   type SignupInput,
-} from "@cartsas/shared";
+} from "@virundhu/shared";
 import { AuthService } from "./auth.service";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
 import { JwtAuthGuard } from "./jwt-auth.guard";

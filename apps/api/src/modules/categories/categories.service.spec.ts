@@ -2,7 +2,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { PrismaService } from "../../prisma/prisma.service";
 import { CategoriesService } from "./categories.service";
 import { ApiException } from "../../common/errors/api.exception";
-import { API_ERROR_CODES } from "@cartsas/shared";
+import { API_ERROR_CODES } from "@virundhu/shared";
 
 const makeCategory = (over: Record<string, unknown> = {}) => ({
   id: "cat-1",

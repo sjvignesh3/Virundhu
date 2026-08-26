@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@prisma/client";
-import type { OrderStatus } from "@cartsas/shared";
-import { canTransition, nextValidStatuses } from "@cartsas/shared";
+import type { OrderStatus } from "@virundhu/shared";
+import { canTransition, nextValidStatuses } from "@virundhu/shared";
 import { ApiException } from "../../common/errors/api.exception";
 import { PrismaService } from "../../prisma/prisma.service";
 import { toOrderDTO } from "../../common/mappers/entities";

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { DashboardMetricsDTO } from "@cartsas/shared";
+import type { DashboardMetricsDTO } from "@virundhu/shared";
 import { PrismaService } from "../../prisma/prisma.service";
 import { decimalToNumber } from "../../common/mappers/decimal";
 

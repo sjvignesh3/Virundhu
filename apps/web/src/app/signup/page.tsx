@@ -15,7 +15,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ApiError, signupSchema, type SignupInput } from "@cartsas/shared";
+import { ApiError, signupSchema, type SignupInput } from "@virundhu/shared";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

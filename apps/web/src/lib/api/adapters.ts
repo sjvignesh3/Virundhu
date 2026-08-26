@@ -2,7 +2,7 @@
  * DTO ↔ frontend domain adapters.
  *
  * The frontend domain (`@/lib/domain/types`) is what the Phase 1 UI already
- * knows how to render. The API contract (`@cartsas/shared`) uses a slightly
+ * knows how to render. The API contract (`@virundhu/shared`) uses a slightly
  * flatter shape (Store separates settings, orders have a Customer relation
  * rather than an inline object, etc.). These adapters keep every UI
  * component untouched — the API repos read DTOs, run them through here,
@@ -16,7 +16,7 @@ import type {
   PublicStoreDTO,
   StoreDTO,
   StoreSettingsDTO,
-} from "@cartsas/shared";
+} from "@virundhu/shared";
 import type {
   Category,
   Order,

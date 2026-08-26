@@ -23,7 +23,7 @@ import type { Order } from "@/lib/domain/types";
 import type { Repos } from "@/lib/repositories";
 import { csvFilename, ordersToCsv } from "@/lib/domain/csv";
 import { formatCurrency, cn } from "@/lib/utils";
-import type { ReportsSummaryDTO } from "@cartsas/shared";
+import type { ReportsSummaryDTO } from "@virundhu/shared";
 
 type Range = "today" | "7d" | "30d" | "all";
 const RANGE_LABEL: Record<Range, string> = {

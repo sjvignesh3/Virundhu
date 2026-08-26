@@ -36,7 +36,7 @@ import {
 } from "@/lib/domain/dashboard-metrics";
 import { ACTIVE_STATUS_FLOW } from "@/lib/domain/order-status";
 import { formatCurrency } from "@/lib/utils";
-import type { DashboardMetricsDTO } from "@cartsas/shared";
+import type { DashboardMetricsDTO } from "@virundhu/shared";
 import type { Order, Product } from "@/lib/domain/types";
 import type { Repos } from "@/lib/repositories";
 

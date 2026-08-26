@@ -1,4 +1,4 @@
-import type { StoreDTO, StoreSettingsDTO, PublicStoreDTO } from "@cartsas/shared";
+import type { StoreDTO, StoreSettingsDTO, PublicStoreDTO } from "@virundhu/shared";
 import type { Store, StoreDraft, ID } from "@/lib/domain/types";
 import { apiFetch } from "@/lib/api/client";
 import { storeFromApi } from "@/lib/api/adapters";

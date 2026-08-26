@@ -1,4 +1,4 @@
-import type { AuthLoginResponse, SignupInput } from "@cartsas/shared";
+import type { AuthLoginResponse, SignupInput } from "@virundhu/shared";
 import { apiFetch } from "./client";
 import { writeSession, readSession } from "./session";
 import type { AuthSession } from "./env";

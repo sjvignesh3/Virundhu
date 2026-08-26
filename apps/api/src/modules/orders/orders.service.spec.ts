@@ -4,7 +4,7 @@ import { PaymentsService } from "../payments/payments.service";
 import { OrderNumberService } from "./order-number.service";
 import { OrdersService } from "./orders.service";
 import { ApiException } from "../../common/errors/api.exception";
-import { API_ERROR_CODES } from "@cartsas/shared";
+import { API_ERROR_CODES } from "@virundhu/shared";
 import { toPrismaDecimal } from "../../common/mappers/decimal";
 
 /**

@@ -1,4 +1,4 @@
-import type { ProductDTO } from "@cartsas/shared";
+import type { ProductDTO } from "@virundhu/shared";
 import type { Product, ProductDraft, ID } from "@/lib/domain/types";
 import { apiFetch } from "@/lib/api/client";
 import { productFromApi } from "@/lib/api/adapters";
