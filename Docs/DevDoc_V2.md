@@ -10,7 +10,7 @@
 
 ---
 
-## Stage 1 · Foundation & Backend Bring-Up
+## Stage 1 · Foundation & Backend Bring-Ups
 
 Target: greenfield Supabase-native backend in `supabase/` — schema, RLS, RPCs,
 public view, cron, seed, tests, and CI. Zero client changes. Legacy API untouched.
