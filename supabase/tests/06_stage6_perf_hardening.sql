@@ -7,7 +7,7 @@
 --   3. The security-invoker RLS wrapper store_daily_metrics_v exists.
 --   4. anon has NO select privilege on the raw materialized view.
 --   5. authenticated has select on the wrapper view.
---   6. Hot-path composite index orders_store_status_placed_idx exists.
+--   6. Hot-path composite index orders_store_status_created_idx exists.
 --   7. The pg_cron refresh job 'virundhu_refresh_metrics' is scheduled
 --      (skipped gracefully when pg_cron is absent, e.g. shadow DBs).
 -- =============================================================================
@@ -65,9 +65,9 @@ select ok(
     select 1
       from pg_indexes
      where schemaname = 'public'
-       and indexname  = 'orders_store_status_placed_idx'
+       and indexname  = 'orders_store_status_created_idx'
   ),
-  'composite index orders_store_status_placed_idx exists on orders(store_id,status,placed_at desc)'
+  'composite index orders_store_status_created_idx exists on orders(store_id,status,created_at desc)'
 );
 
 -- ── (7) pg_cron refresh job scheduled (skip if pg_cron absent) ───────────────

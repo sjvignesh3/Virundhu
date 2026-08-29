@@ -30,7 +30,7 @@ end$$;
 -- 2. store_daily_metrics materialized view
 -- --------------------------------------------------------------------------
 -- One row per (store_id, day) for the last 30 days. Cheap to refresh
--- concurrently because it is bounded by the placed_at index.
+-- concurrently because it is bounded by the created_at index.
 --
 -- Design notes:
 --   * We include only COMPLETED orders — cancelled/refunded revenue never
@@ -38,19 +38,21 @@ end$$;
 --   * `placed_day` is stored in the store's own timezone would be ideal,
 --     but we currently render dashboards in UTC (matches auth.jwt().tz
 --     absence). If per-store TZ lands later, replace `date_trunc('day', …)`
---     with `date_trunc('day', o.placed_at at time zone s.timezone)`.
+--     with `date_trunc('day', o.created_at at time zone s.timezone)`.
+--   * Column names are the contract-aligned ones (created_at, total_amount)
+--     applied by 20260901001900_schema_align_contract.sql.
 --
 create materialized view if not exists public.store_daily_metrics as
   select
     o.store_id,
-    date_trunc('day', o.placed_at)::date as placed_day,
-    count(*)::int                        as order_count,
-    coalesce(sum(o.total), 0)::numeric(14,2)   as revenue,
-    coalesce(avg(o.total), 0)::numeric(14,2)   as avg_order_value
+    date_trunc('day', o.created_at)::date as placed_day,
+    count(*)::int                                 as order_count,
+    coalesce(sum(o.total_amount), 0)::numeric(14,2) as revenue,
+    coalesce(avg(o.total_amount), 0)::numeric(14,2) as avg_order_value
   from public.orders o
   where o.status = 'COMPLETED'
-    and o.placed_at >= now() - interval '31 days'
-  group by o.store_id, date_trunc('day', o.placed_at);
+    and o.created_at >= now() - interval '31 days'
+  group by o.store_id, date_trunc('day', o.created_at);
 
 -- REFRESH MATERIALIZED VIEW CONCURRENTLY requires a unique index.
 create unique index if not exists store_daily_metrics_pk
@@ -113,9 +115,9 @@ end$$;
 -- 5. Hot-path indexes
 -- --------------------------------------------------------------------------
 -- These accelerate the three queries owners hit constantly:
---   a) /orders/live         → orders by store + status + placed_at desc
---   b) /orders/history      → orders by store + placed_at desc
---   c) /reports?from&to     → orders by store + placed_at range
+--   a) /orders/live         → orders by store + status + created_at desc
+--   b) /orders/history      → orders by store + created_at desc
+--   c) /reports?from&to     → orders by store + created_at range
 --
 -- All three collapse to a single composite index. We use CONCURRENTLY so
 -- production deploys don't take an ACCESS EXCLUSIVE lock.
@@ -124,11 +126,15 @@ end$$;
 -- cannot run inside one. Supabase's migration runner honours the
 -- `-- supabase: no_transaction` header. Fallback: plain CREATE INDEX runs
 -- against an empty table on first deploy and is still safe.
-create index if not exists orders_store_placed_idx
-  on public.orders (store_id, placed_at desc);
+--
+-- The 001900 realign migration already created orders_live_idx /
+-- orders_history_idx under the new column names, so these are extra
+-- covering indexes (status-scoped variant) that only add value.
+create index if not exists orders_store_created_idx
+  on public.orders (store_id, created_at desc);
 
-create index if not exists orders_store_status_placed_idx
-  on public.orders (store_id, status, placed_at desc);
+create index if not exists orders_store_status_created_idx
+  on public.orders (store_id, status, created_at desc);
 
 -- Order items are always joined by order_id and grouped by product_id for
 -- the "top products" panel; keep both edges indexed.
