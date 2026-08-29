@@ -3,10 +3,12 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { publicMenuKeys, publicMenuRepo, ordersRepo } from "@virundhu/client";
-import type { PublicMenuProduct } from "@virundhu/client";
+import type { PublicMenuProduct, PublicMenuStore } from "@virundhu/client";
+import type { ActivePaymentMethod } from "@virundhu/shared";
 import { cartStore, useCart, cartSubtotal, cartCount } from "@/lib/cart";
 import { formatCurrency } from "@/lib/format";
 import { transformImageUrl } from "@/lib/image";
+import { buildUpiIntentUrl } from "@/lib/upi";
 import { cn } from "@/lib/cn";
 
 export const Route = createFileRoute("/menu/$slug")({
@@ -107,7 +109,7 @@ function PublicMenuPage() {
       ) : null}
 
       {checkoutOpen ? (
-        <CheckoutSheet slug={slug} storeId={store.id} onClose={() => setCheckoutOpen(false)} />
+        <CheckoutSheet slug={slug} store={store} onClose={() => setCheckoutOpen(false)} />
       ) : null}
     </div>
   );
@@ -215,11 +217,11 @@ function ProductRow({
 
 function CheckoutSheet({
   slug,
-  storeId,
+  store,
   onClose,
 }: {
   slug: string;
-  storeId: string;
+  store: PublicMenuStore;
   onClose: () => void;
 }) {
   const navigate = useNavigate();
@@ -227,22 +229,48 @@ function CheckoutSheet({
   const subtotal = useCart((s) => cartSubtotal(s.lines));
   const [customer, setCustomer] = useState({ name: "", phone: "" });
   const [notes, setNotes] = useState("");
+  // Payment selection — Stage 7. Defaults to UPI when the vendor has a VPA
+  // on file (higher conversion + no cash-handling friction), else CASH.
+  const upiAvailable = Boolean(store.upiId);
+  const [paymentMethod, setPaymentMethod] = useState<ActivePaymentMethod>(
+    upiAvailable ? "UPI" : "CASH",
+  );
 
   const place = useMutation({
     mutationFn: () =>
-      ordersRepo.createFromCart(storeId, {
+      ordersRepo.createFromCart(store.id, {
         items: lines.map((l) => ({ productId: l.productId, quantity: l.quantity })),
         customer: {
           name: customer.name.trim() || undefined,
           phone: customer.phone.trim() || undefined,
         },
         notes: notes.trim() || undefined,
+        paymentMethod,
       }),
     onSuccess: (order) => {
       toast.success(`Order #${order.order_number} placed!`);
       cartStore.getState().clear();
+
+      // If the customer picked UPI, open the intent URL in a new context
+      // BEFORE navigating so the click is still trusted (Safari/iOS ignore
+      // programmatic `location.href` writes after a routing transition).
+      if (paymentMethod === "UPI" && store.upiId) {
+        const upiUrl = buildUpiIntentUrl({
+          vpa: store.upiId,
+          payeeName: store.name,
+          amount: order.total_amount,
+          orderNumber: order.order_number,
+        });
+        if (upiUrl) {
+          // `location.assign` triggers the OS handoff on Android/iOS;
+          // desktop browsers show their "open in app" chooser or ignore.
+          window.location.assign(upiUrl);
+        } else {
+          toast.error("Could not launch UPI app. Please pay by cash on pickup.");
+        }
+      }
+
       onClose();
-      // Send the customer to the success page — Plan §4.4.
       navigate({
         to: "/menu/$slug/success/$orderNumber",
         params: { slug, orderNumber: order.order_number },
@@ -251,12 +279,17 @@ function CheckoutSheet({
     onError: (err) => toast.error(err instanceof Error ? err.message : "Order failed"),
   });
 
+  const primaryLabel =
+    paymentMethod === "UPI"
+      ? `Pay ${formatCurrency(subtotal)} via UPI`
+      : `Place order · Pay ${formatCurrency(subtotal)} in cash`;
+
   return (
     <div className="fixed inset-0 bg-black/50 grid place-items-end md:place-items-center z-50">
       <div className="bg-white w-full md:max-w-md md:rounded-lg max-h-[90vh] overflow-auto p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Your order</h2>
-          <button className="text-neutral-400" onClick={onClose}>✕</button>
+          <button className="text-neutral-400" onClick={onClose} aria-label="Close">✕</button>
         </div>
         <div className="divide-y">
           {lines.map((l) => (
@@ -295,17 +328,85 @@ function CheckoutSheet({
             onChange={(e) => setNotes(e.target.value)}
           />
         </div>
+
+        {/* Payment method — Stage 7 */}
+        <fieldset className="mt-3 space-y-2">
+          <legend className="text-xs uppercase tracking-wide text-neutral-500">
+            Payment
+          </legend>
+          <PaymentOption
+            id="pm-cash"
+            label="Pay by cash on pickup"
+            hint="Show your order number at the counter."
+            checked={paymentMethod === "CASH"}
+            onChange={() => setPaymentMethod("CASH")}
+          />
+          <PaymentOption
+            id="pm-upi"
+            label="Pay via UPI"
+            hint={
+              upiAvailable
+                ? `Opens your UPI app · pays ${store.name}`
+                : "This store hasn't set up UPI yet."
+            }
+            checked={paymentMethod === "UPI"}
+            onChange={() => setPaymentMethod("UPI")}
+            disabled={!upiAvailable}
+          />
+        </fieldset>
+
         <button
-          className="btn btn-primary w-full mt-3"
+          className="btn btn-primary w-full mt-4"
           disabled={place.isPending || lines.length === 0}
           onClick={() => place.mutate()}
         >
-          {place.isPending ? "Placing…" : `Place order (${formatCurrency(subtotal)})`}
+          {place.isPending ? "Placing…" : primaryLabel}
         </button>
         <p className="text-[10px] text-neutral-400 text-center mt-2">
           Order for pickup at {slug}
         </p>
       </div>
     </div>
+  );
+}
+
+function PaymentOption({
+  id,
+  label,
+  hint,
+  checked,
+  onChange,
+  disabled,
+}: {
+  id: string;
+  label: string;
+  hint: string;
+  checked: boolean;
+  onChange: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label
+      htmlFor={id}
+      className={cn(
+        "flex items-start gap-3 border rounded-md p-3 cursor-pointer text-sm",
+        checked ? "border-brand bg-brand/5" : "border-neutral-200",
+        disabled && "opacity-50 cursor-not-allowed",
+      )}
+    >
+      <input
+        id={id}
+        type="radio"
+        name="payment-method"
+        className="mt-1"
+        checked={checked}
+        disabled={disabled}
+        onChange={onChange}
+      />
+      <div>
+        <div className="font-medium">{label}</div>
+        <div className="text-xs text-neutral-500">{hint}</div>
+      </div>
+    </label>
   );
 }

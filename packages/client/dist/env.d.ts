@@ -6,8 +6,15 @@
 interface SupabaseEnv {
     url: string;
     anonKey: string;
+    /**
+     * Base URL for the edge-cached public menu proxy (Plan §4.1).
+     * Defaults to same-origin `/api/menu`. Set to an empty string to bypass
+     * the proxy and read `public_store_menu` directly from Supabase — useful
+     * for local dev without a Vercel dev server.
+     */
+    publicMenuBaseUrl: string;
 }
-export declare function configureSupabaseEnv(env: SupabaseEnv): void;
+export declare function configureSupabaseEnv(env: Partial<SupabaseEnv> & Pick<SupabaseEnv, "url" | "anonKey">): void;
 export declare function getSupabaseEnv(): SupabaseEnv;
 /**
  * Test hook — resets any injected override. Never called from app code.
