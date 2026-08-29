@@ -10,19 +10,19 @@ do $$
 begin
   -- Only attempt scheduling if pg_cron is actually installed (it is not on
   -- some CI-shadow databases).
+  -- NOTE: pg_cron always registers its catalog in the `cron` schema regardless
+  --       of which schema the extension object was created in. Using any other
+  --       schema prefix (e.g. extensions.cron) triggers a cross-database error.
   if exists (select 1 from pg_extension where extname = 'pg_cron') then
     -- Idempotent: unschedule any previous version first.
-    perform extensions.cron.unschedule(jobid)
-      from extensions.cron.job
+    perform cron.unschedule(jobid)
+      from cron.job
      where jobname = 'virundhu_keepalive';
 
-    perform extensions.cron.schedule(
+    perform cron.schedule(
       'virundhu_keepalive',
       '0 */6 * * *',       -- every 6 hours
       $keepalive$select 1 from public.stores limit 1$keepalive$
     );
   end if;
 end$$;
-
-comment on extension pg_cron is
-  'Scheduled jobs. virundhu_keepalive runs every 6h to prevent free-tier pause.';

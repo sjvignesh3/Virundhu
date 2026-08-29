@@ -97,11 +97,11 @@ revoke all on public.store_daily_metrics from anon, authenticated;
 do $$
 begin
   if exists (select 1 from pg_extension where extname = 'pg_cron') then
-    perform extensions.cron.unschedule(jobid)
-      from extensions.cron.job
+    perform cron.unschedule(jobid)
+      from cron.job
      where jobname = 'virundhu_refresh_metrics';
 
-    perform extensions.cron.schedule(
+    perform cron.schedule(
       'virundhu_refresh_metrics',
       '*/5 * * * *',
       $refresh$refresh materialized view concurrently public.store_daily_metrics$refresh$

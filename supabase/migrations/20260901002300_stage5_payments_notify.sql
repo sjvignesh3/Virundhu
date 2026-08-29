@@ -283,11 +283,11 @@ grant execute on function public.orders_cancel(uuid, text) to authenticated;
 do $$
 begin
   if exists (select 1 from pg_extension where extname = 'pg_cron') then
-    perform extensions.cron.unschedule(jobid)
-      from extensions.cron.job
+    perform cron.unschedule(jobid)
+      from cron.job
      where jobname = 'virundhu_idempotency_sweep';
 
-    perform extensions.cron.schedule(
+    perform cron.schedule(
       'virundhu_idempotency_sweep',
       '30 3 * * *',        -- daily at 03:30
       $sweep$delete from public.idempotency_keys where expires_at < now()$sweep$

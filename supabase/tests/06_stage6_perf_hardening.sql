@@ -79,7 +79,7 @@ begin
   if v_has_cron then
     perform ok(
       exists(
-        select 1 from extensions.cron.job where jobname = 'virundhu_refresh_metrics'
+        select 1 from cron.job where jobname = 'virundhu_refresh_metrics'
       ),
       'virundhu_refresh_metrics job is scheduled'
     );
