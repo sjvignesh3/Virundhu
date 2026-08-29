@@ -10,12 +10,31 @@
  *   0 → clean
  *   1 → offenders printed to stderr
  */
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, extname } from "node:path";
+import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
+import { join, extname, resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+// Resolve default roots from the REPO ROOT, not the cwd. npm workspace
+// scripts run with cwd = packages/client, which made the previous
+// cwd-relative defaults resolve to nonexistent paths — the script scanned
+// ZERO files while printing success (2026-08-29 audit finding).
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
 const roots = process.argv.slice(2).length
   ? process.argv.slice(2)
-  : ["packages/client/src", "apps/spa/src"];
+  : [join(repoRoot, "packages/client/src"), join(repoRoot, "apps/spa/src")];
+
+// Defaults must exist — a typo'd root failing silently is how the gate
+// became a no-op. (Explicit CLI args may still point at not-yet-created
+// trees, so only the defaults are strict.)
+if (!process.argv.slice(2).length) {
+  for (const root of roots) {
+    if (!existsSync(root)) {
+      console.error(`\x1b[31m✖ scan root missing: ${root}\x1b[0m`);
+      process.exit(1);
+    }
+  }
+}
 
 const OFFENSE = /\.select\(\s*['"`]\*['"`]/g;
 const EXTS = new Set([".ts", ".tsx", ".js", ".mjs"]);

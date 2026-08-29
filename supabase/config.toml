@@ -44,7 +44,12 @@ enable_confirmations = false    # v1 parity: email confirmation deferred to Stag
 password_min_length = 8
 
 [auth.email]
-enable_signup = false
+# IMPORTANT: this flag maps to GoTrue's "email provider enabled" switch —
+# `false` disables email+password LOGINS entirely (422 email_provider_disabled),
+# not just signup. Public signup is already blocked by the top-level
+# `auth.enable_signup = false`; owners are created via the auth-signup Edge
+# Function (admin API) and then sign in with email+password here.
+enable_signup = true
 double_confirm_changes = true
 enable_confirmations = false
 

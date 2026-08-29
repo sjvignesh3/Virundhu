@@ -9,36 +9,53 @@
     height: 100%;
   }
   body {
-    @apply text-neutral-900 bg-neutral-50;
+    @apply text-neutral-900 bg-neutral-50 antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  ::selection {
+    background: rgba(249, 115, 22, 0.35);
   }
 }
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium
-      transition-colors disabled:pointer-events-none disabled:opacity-50 select-none;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold
+      transition-colors disabled:pointer-events-none disabled:opacity-50 select-none
+      focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand;
   }
   .btn-primary {
-    @apply bg-brand text-brand-fg hover:bg-brand/90;
+    @apply bg-brand text-brand-fg hover:bg-brand-dark;
   }
   .btn-secondary {
-    @apply bg-neutral-100 text-neutral-900 hover:bg-neutral-200;
+    @apply bg-neutral-100 text-neutral-800 hover:bg-neutral-200;
   }
   .btn-outline {
-    @apply border border-neutral-300 hover:bg-neutral-100;
+    @apply border border-neutral-300 text-neutral-800 hover:bg-neutral-100;
   }
   .btn-danger {
-    @apply bg-red-600 text-white hover:bg-red-700;
+    @apply bg-red-600 text-white hover:opacity-90;
   }
   .input {
-    @apply block w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm
+    @apply block w-full rounded-xl border border-neutral-200 bg-neutral-100 px-3 py-2 text-sm text-neutral-900
+      placeholder:text-neutral-400
       focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand;
   }
   .card {
-    @apply rounded-lg border border-neutral-200 bg-white shadow-sm;
+    @apply rounded-2xl border border-neutral-200 bg-white shadow-card;
   }
   .badge {
-    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium;
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+  /* Stat tile — dashboard / reports */
+  .stat-icon {
+    @apply w-9 h-9 rounded-xl bg-brand-soft text-brand grid place-items-center text-base;
+  }
+  /* Sidebar nav item */
+  .nav-item {
+    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-neutral-500
+      hover:bg-neutral-100 hover:text-neutral-800 transition-colors whitespace-nowrap;
+  }
+  .nav-item-active {
+    @apply bg-brand-soft text-brand;
   }
 }

@@ -70,26 +70,20 @@ select ok(
 );
 
 -- ── (4) orders_create defaults to CASH ───────────────────────────────────────
--- We invoke as service_role (superuser in tests) so public.has_store() short-
--- circuits via the SECURITY DEFINER path; the payment_method default is what
--- we care about here.
-do $$
-declare
-  v_order public.orders%rowtype;
-begin
-  select * into v_order from public.orders_create(
+-- NOTE: plain SELECT, not a DO block — `perform ok(...)` inside DO swallows
+-- the TAP output row and the harness reports a bad plan.
+select is(
+  (public.orders_create(
     'bbbb7777-0000-0000-0000-00000000cafe',
     jsonb_build_array(jsonb_build_object(
       'product_id', 'bbbb7777-0000-0000-0000-000000000002',
       'quantity',   1
     )),
     'Test Customer', null, null, 'CASH'
-  );
-  perform ok(
-    v_order.payment_method = 'CASH',
-    'orders_create defaults payment_method to CASH when specified'
-  );
-end $$;
+  )).payment_method,
+  'CASH'::public.payment_method,
+  'orders_create stores CASH when specified'
+);
 
 -- ── (5) orders_create rejects SIMULATED/CARD ─────────────────────────────────
 select throws_ok(
@@ -104,35 +98,38 @@ select throws_ok(
 );
 
 -- ── (6) UPI on a CASH-only store degrades silently ───────────────────────────
-do $$
-declare
-  v_order public.orders%rowtype;
-begin
-  select * into v_order from public.orders_create(
+select is(
+  (public.orders_create(
     'bbbb7777-0000-0000-0000-00000000cafe',
     jsonb_build_array(jsonb_build_object(
       'product_id', 'bbbb7777-0000-0000-0000-000000000002',
       'quantity',   1)),
     null, null, null, 'UPI'
-  );
-  perform ok(
-    v_order.payment_method = 'CASH',
-    'UPI on a store without upi_id degrades to CASH (no error)'
-  );
-end $$;
+  )).payment_method,
+  'CASH'::public.payment_method,
+  'UPI on a store without upi_id degrades to CASH (no error)'
+);
 
 -- ── (7) advance_status no longer invokes notify_order_transition ─────────────
--- The helper still exists (boilerplate) but should not appear inside
--- orders_advance_status' pg_get_functiondef output.
+-- The helper still exists (boilerplate) but there must be no live `perform`
+-- CALL inside orders_advance_status. (A comment naming the function is fine —
+-- pg_get_functiondef returns comments verbatim, so we match the call syntax.)
 select ok(
   exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
            where n.nspname='public' and p.proname='notify_order_transition')
   and (
-    pg_get_functiondef(
-      (select p.oid from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-        where n.nspname='public' and p.proname='orders_advance_status'
-        limit 1)
-    ) not ilike '%notify_order_transition%'
+    -- Strip `--` comment lines first: the migration deliberately keeps the
+    -- re-enable instruction as a comment, which pg_get_functiondef returns
+    -- verbatim.
+    (select string_agg(l, chr(10))
+       from unnest(string_to_array(
+         pg_get_functiondef(
+           (select p.oid from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+             where n.nspname='public' and p.proname='orders_advance_status'
+             limit 1)
+         ), chr(10))) l
+      where l !~ '^\s*--'
+    ) !~* 'perform\s+public\.notify_order_transition'
   ),
   'notify_order_transition retained as boilerplate but no longer invoked by orders_advance_status'
 );

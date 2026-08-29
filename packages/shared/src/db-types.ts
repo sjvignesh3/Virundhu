@@ -352,6 +352,7 @@ export interface Database {
           p_store_name: string;
           p_store_slug: string;
           p_owner_name?: string | null;
+          p_store_upi_id?: string | null;
         };
         Returns: Json;
       };

@@ -10,7 +10,11 @@
  */
 import { getSupabase } from "../supabase";
 import { fromPostgrest } from "../errors";
-import { ORDER_DETAIL_COLUMNS, ORDER_LIST_COLUMNS } from "../columns";
+import {
+  ORDER_DETAIL_COLUMNS,
+  ORDER_LIST_COLUMNS,
+  ORDER_LIVE_COLUMNS,
+} from "../columns";
 import type {
   OrderRow,
   OrderItemRow,
@@ -20,6 +24,13 @@ import type {
 import { ACTIVE_ORDER_STATUSES } from "@virundhu/shared";
 
 type OrderWithItems = OrderRow & { items: OrderItemRow[] };
+
+/** Kitchen-card summary line — from the ORDER_LIVE_COLUMNS projection. */
+export interface OrderItemSummary {
+  product_name: string;
+  quantity: number;
+}
+export type LiveOrderRow = OrderRow & { items: OrderItemSummary[] };
 
 export interface OrderListFilter {
   status?: OrderStatus[];
@@ -72,15 +83,15 @@ export const ordersRepo = {
     };
   },
 
-  async listActive(storeId: string): Promise<OrderRow[]> {
+  async listActive(storeId: string): Promise<LiveOrderRow[]> {
     const { data, error } = await getSupabase()
       .from("orders")
-      .select(ORDER_LIST_COLUMNS)
+      .select(ORDER_LIVE_COLUMNS)
       .eq("store_id", storeId)
       .in("status", ACTIVE_ORDER_STATUSES as unknown as string[])
       .order("created_at", { ascending: true });
     if (error) throw fromPostgrest(error);
-    return (data ?? []) as unknown as OrderRow[];
+    return (data ?? []) as unknown as LiveOrderRow[];
   },
 
   async get(id: string): Promise<OrderWithItems> {

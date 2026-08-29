@@ -78,15 +78,23 @@ export async function initSessionStore(): Promise<void> {
   const supabase = getSupabase();
   useSession.setState({ status: "loading" });
 
-  // Snapshot current session
-  const { data } = await supabase.auth.getSession();
-  useSession.getState().setSession(data.session);
+  try {
+    // Snapshot current session
+    const { data } = await supabase.auth.getSession();
+    useSession.getState().setSession(data.session);
 
-  // Subscribe to changes
-  const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-    useSession.getState().setSession(session);
-  });
-  unsubscribe = () => sub.subscription.unsubscribe();
+    // Subscribe to changes
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      useSession.getState().setSession(session);
+    });
+    unsubscribe = () => sub.subscription.unsubscribe();
+  } catch {
+    // Bootstrap failure (bad env, network down) must resolve to a terminal
+    // state — a permanent "loading" leaves route guards awaiting forever
+    // and the user staring at a blank screen. Anonymous → guards redirect
+    // to /login, which surfaces the real error on the next attempt.
+    useSession.getState().setSession(null);
+  }
 }
 
 export function disposeSessionStore(): void {

@@ -71,22 +71,17 @@ select ok(
 );
 
 -- ── (7) pg_cron refresh job scheduled (skip if pg_cron absent) ───────────────
-do $$
-declare
-  v_has_cron boolean;
-begin
-  select exists(select 1 from pg_extension where extname = 'pg_cron') into v_has_cron;
-  if v_has_cron then
-    perform ok(
-      exists(
-        select 1 from cron.job where jobname = 'virundhu_refresh_metrics'
-      ),
+-- NOTE: must stay a plain SELECT — `perform ok(...)` inside a DO block
+-- swallows the TAP output row and the harness reports a bad plan.
+select case
+  when exists(select 1 from pg_extension where extname = 'pg_cron') then
+    ok(
+      exists(select 1 from cron.job where jobname = 'virundhu_refresh_metrics'),
       'virundhu_refresh_metrics job is scheduled'
-    );
+    )
   else
-    perform skip(1, 'pg_cron not installed on this database');
-  end if;
-end$$;
+    skip('pg_cron not installed on this database', 1)
+end;
 
 select * from finish();
 rollback;

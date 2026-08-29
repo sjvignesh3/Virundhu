@@ -24,7 +24,7 @@ test.describe("signup → owner console (requires live Supabase)", () => {
 
     await page.goto("/signup");
     await page.getByLabel(/store name/i).fill(`QA Store ${stamp}`);
-    await page.getByLabel(/store URL slug/i).fill(`qa-${stamp}`);
+    await page.getByLabel(/store slug/i).fill(`qa-${stamp}`);
     await page.getByLabel(/your name/i).fill("QA Owner");
     await page.getByLabel(/email/i).fill(email);
     await page.getByLabel(/^password/i).fill("Test123!");
@@ -33,8 +33,8 @@ test.describe("signup → owner console (requires live Supabase)", () => {
     // Backend provisioned tenant + session persisted → redirected to dashboard.
     await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15_000 });
 
-    // Empty tenant: no orders yet.
-    await expect(page.getByText(/today.*revenue/i)).toBeVisible();
-    await expect(page.getByText(/₹0/)).toBeVisible();
+    // Empty tenant: welcome header renders and revenue is zero.
+    await expect(page.getByText(/welcome back/i)).toBeVisible();
+    await expect(page.getByText(/₹0/).first()).toBeVisible();
   });
 });
