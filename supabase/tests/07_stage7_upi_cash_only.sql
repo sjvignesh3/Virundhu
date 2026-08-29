@@ -70,7 +70,7 @@ select ok(
 );
 
 -- ── (4) orders_create defaults to CASH ───────────────────────────────────────
--- We invoke as service_role (superuser in tests) so auth.has_store() short-
+-- We invoke as service_role (superuser in tests) so public.has_store() short-
 -- circuits via the SECURITY DEFINER path; the payment_method default is what
 -- we care about here.
 do $$

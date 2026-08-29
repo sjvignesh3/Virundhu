@@ -34,9 +34,9 @@
 - **Multi-tenant claim:** `app_metadata.store_ids: uuid[]` — set by the `auth-signup` Edge Function and any future "invite user to store" flow. Never mutable by the user.
 - **Role claim:** `app_metadata.role: 'owner' | 'staff'` — enforced by policies for privileged mutations.
 - **Helper functions** (SQL, `stable`):
-  - `auth.jwt_store_ids()` → `uuid[]`
-  - `auth.jwt_role()` → `text`
-  - `auth.has_store(p_store_id uuid)` → `boolean`
+  - `public.jwt_store_ids()` → `uuid[]`
+  - `public.jwt_role()` → `text`
+  - `public.has_store(p_store_id uuid)` → `boolean`
 
 ---
 
@@ -62,7 +62,7 @@
 
 All state changes that require **atomicity, validation, or invariants** run as `SECURITY DEFINER` PL/pgSQL functions owned by a dedicated `virundhu_api` role. Each RPC:
 
-1. **Re-checks tenancy** via `auth.has_store(p_store_id)` — never trusts a payload-supplied `store_id`.
+1. **Re-checks tenancy** via `public.has_store(p_store_id)` — never trusts a payload-supplied `store_id`.
 2. **Re-computes money** — client-supplied prices are ignored; the RPC re-reads `products.price` under a `FOR SHARE` lock.
 3. **Validates state transitions** — `orders_advance_status` consults an SQL transition matrix identical to `packages/shared/src/transitions.ts`.
 4. **Emits audit** — every RPC inserts into `audit_log(actor, action, target, payload_hash)`.

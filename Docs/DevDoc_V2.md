@@ -71,7 +71,7 @@ green the pipeline end-to-end).
 |---|---|---|
 | 1 | `20260901000100_extensions.sql` | `pgcrypto`, `uuid-ossp`, `citext`, `pg_cron`, `pg_net`, `pgtap` — all in `extensions` schema |
 | 2 | `20260901000200_enums.sql` | `order_status`, `payment_status`, `payment_method`, `store_status`, `member_role`, `printer_kind` — **byte-identical to `@virundhu/shared/enums.ts`** |
-| 3 | `20260901000300_helpers.sql` | `auth.jwt_store_ids()`, `auth.jwt_role()`, `auth.has_store()`, `tg_set_updated_at()`, `is_valid_slug()` |
+| 3 | `20260901000300_helpers.sql` | `public.jwt_store_ids()`, `public.jwt_role()`, `public.has_store()`, `tg_set_updated_at()`, `is_valid_slug()` |
 | 4 | `20260901000400_stores.sql` | `stores` (with citext slug + `is_valid_slug` check), `store_members` |
 | 5 | `20260901000500_catalog.sql` | `categories`, `products` — includes partial index `products_store_active_category_idx` for the public menu hot path |
 | 6 | `20260901000600_orders.sql` | `orders`, `order_items` (generated `line_total`), `order_sequences` |
@@ -103,7 +103,7 @@ green the pipeline end-to-end).
 
 - **`ENABLE ROW LEVEL SECURITY` + `FORCE ROW LEVEL SECURITY`** on every application
   table. Even a table's owner obeys policies.
-- Read policies use `auth.has_store(store_id)`; write policies mirror the read
+- Read policies use `public.has_store(store_id)`; write policies mirror the read
   clause and add `WITH CHECK` so INSERT/UPDATE can't drift into another tenant.
 - **Order writes have zero policies** — the tables are readable but any direct
   INSERT/UPDATE/DELETE from the browser or PostgREST returns `42501`. All order
@@ -134,7 +134,7 @@ green the pipeline end-to-end).
 
 **Invariants enforced in RPCs (not the client):**
 
-1. **Tenancy** — every RPC calls `auth.has_store(p_store_id)` before touching state.
+1. **Tenancy** — every RPC calls `public.has_store(p_store_id)` before touching state.
 2. **Money** — `orders_create` re-reads `products.price` under `FOR SHARE` and
    ignores whatever the client sent.
 3. **State machine** — `orders_advance_status` refuses transitions that

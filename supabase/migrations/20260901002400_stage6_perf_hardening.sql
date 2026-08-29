@@ -77,13 +77,13 @@ end$$;
 -- 3. RLS on the materialized view
 -- --------------------------------------------------------------------------
 -- Postgres does not enforce RLS on materialized views directly; instead we
--- expose a security-invoker view that filters via auth.has_store().
+-- expose a security-invoker view that filters via public.has_store().
 create or replace view public.store_daily_metrics_v
   with (security_invoker = true)
 as
   select m.*
     from public.store_daily_metrics m
-   where auth.has_store(m.store_id);
+   where public.has_store(m.store_id);
 
 grant select on public.store_daily_metrics_v to authenticated;
 
@@ -138,4 +138,4 @@ create index if not exists order_items_product_idx
 comment on materialized view public.store_daily_metrics is
   'Precomputed per-store daily revenue for last 31d. Refreshed every 5 min.';
 comment on view public.store_daily_metrics_v is
-  'RLS wrapper over store_daily_metrics — enforces auth.has_store().';
+  'RLS wrapper over store_daily_metrics — enforces public.has_store().';

@@ -345,7 +345,7 @@ begin
   if not found then
     raise exception 'order not found' using errcode = '22023';
   end if;
-  if not auth.has_store(v_order.store_id) then
+  if not public.has_store(v_order.store_id) then
     raise exception 'forbidden' using errcode = '42501';
   end if;
   if not public.orders_can_transition(v_order.status, p_next) then
@@ -398,7 +398,7 @@ begin
   if not found then
     raise exception 'order not found' using errcode = '22023';
   end if;
-  if not auth.has_store(v_order.store_id) then
+  if not public.has_store(v_order.store_id) then
     raise exception 'forbidden' using errcode = '42501';
   end if;
   if v_order.status in ('COMPLETED', 'CANCELLED') then

@@ -44,7 +44,7 @@ report zero drift after replay).
 
 - Named `<subject>_<verb>` (`orders_create`, `categories_reorder`).
 - Always `SECURITY DEFINER`, always `SET search_path = public, pg_temp`.
-- Always re-verify tenancy via `auth.has_store(p_store_id)` — never trust payload.
+- Always re-verify tenancy via `public.has_store(p_store_id)` — never trust payload.
 - Always return typed rows (never `void`) so PostgREST clients get a predictable response.
 
 ## RLS conventions

@@ -31,7 +31,7 @@ declare
   v_qty         integer;
   v_line_total  numeric(12,2);
 begin
-  if not auth.has_store(p_store_id) then
+  if not public.has_store(p_store_id) then
     raise exception 'forbidden' using errcode = '42501';
   end if;
 
@@ -158,7 +158,7 @@ begin
   if not found then
     raise exception 'order not found' using errcode = '22023';
   end if;
-  if not auth.has_store(v_order.store_id) then
+  if not public.has_store(v_order.store_id) then
     raise exception 'forbidden' using errcode = '42501';
   end if;
   if not public.orders_can_transition(v_order.status, p_next) then
@@ -209,7 +209,7 @@ declare
   v_avg        numeric(14,2);
   v_top        jsonb;
 begin
-  if not auth.has_store(p_store_id) then
+  if not public.has_store(p_store_id) then
     raise exception 'forbidden' using errcode = '42501';
   end if;
 
@@ -289,7 +289,7 @@ as $$
     o.total_amount,
     (select count(*)::int from public.order_items i where i.order_id = o.id) as items
   from public.orders o
-  where auth.has_store(o.store_id)
+  where public.has_store(o.store_id)
     and o.store_id = p_store_id
     and o.created_at >= p_from::timestamptz
     and o.created_at <  (p_to + 1)::timestamptz
@@ -309,7 +309,7 @@ create or replace function public.categories_reorder(
   set search_path = public, pg_temp
 as $$
 begin
-  if not auth.has_store(p_store_id) then
+  if not public.has_store(p_store_id) then
     raise exception 'forbidden' using errcode = '42501';
   end if;
   if exists (
@@ -348,7 +348,7 @@ create or replace function public.products_reorder(
   set search_path = public, pg_temp
 as $$
 begin
-  if not auth.has_store(p_store_id) then
+  if not public.has_store(p_store_id) then
     raise exception 'forbidden' using errcode = '42501';
   end if;
   if exists (

@@ -14,7 +14,7 @@ create or replace function public.categories_reorder(
   set search_path = public, pg_temp
 as $$
 begin
-  if not auth.has_store(p_store_id) then
+  if not public.has_store(p_store_id) then
     raise exception 'forbidden' using errcode = '42501';
   end if;
 
@@ -60,7 +60,7 @@ create or replace function public.products_reorder(
   set search_path = public, pg_temp
 as $$
 begin
-  if not auth.has_store(p_store_id) then
+  if not public.has_store(p_store_id) then
     raise exception 'forbidden' using errcode = '42501';
   end if;
 
