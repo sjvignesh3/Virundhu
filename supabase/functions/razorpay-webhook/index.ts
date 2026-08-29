@@ -103,6 +103,11 @@ Deno.serve(async (req) => {
   const admin = adminClient();
 
   // ─── event-level idempotency guard (Plan §5.4) ─────────────────────────────
+  // Order matters: claim the key BEFORE applying, but RELEASE it if the apply
+  // fails. Otherwise a transient RPC failure leaves the key behind and
+  // Razorpay's retry short-circuits as "idempotent" — the capture would be
+  // silently dropped. (mark_payment_paid is itself idempotent by
+  // provider_payment_id, so a double-apply race is still safe.)
   if (event.id) {
     const guard = await admin
       .from("idempotency_keys")
@@ -124,6 +129,14 @@ Deno.serve(async (req) => {
   });
 
   if (error) {
+    // Release the event key so Razorpay's retry re-attempts the apply.
+    if (event.id) {
+      await admin
+        .from("idempotency_keys")
+        .delete()
+        .eq("key", event.id)
+        .eq("scope", "razorpay-webhook");
+    }
     return json({ code: "MARK_PAID_FAILED", detail: error.message }, 500);
   }
 

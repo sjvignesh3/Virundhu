@@ -20,7 +20,7 @@ set local role authenticated;
 select set_config(
   'request.jwt.claims',
   json_build_object(
-    'sub', 'user-alpha',
+    'sub', 'a1a1a1a1-0000-0000-0000-000000000001',
     'app_metadata', json_build_object(
       'store_ids', json_build_array('aaaa1111-1111-1111-1111-111111111111'),
       'role', 'OWNER'
@@ -68,10 +68,14 @@ select is(
   1,
   'Anon may read public menu of OPEN store'
 );
-select is(
-  (select count(*)::int from public.categories),
-  0,
-  'Anon may NOT read categories table directly'
+-- anon has NO select grant at all on base tables (revoked in 000900) — a
+-- direct read is a hard 42501, not a silent empty result. The public menu
+-- view above is the only anon window.
+select throws_ok(
+  $$ select count(*) from public.categories $$,
+  '42501',
+  null,
+  'Anon may NOT read categories table directly (permission denied)'
 );
 
 select * from finish();

@@ -4,19 +4,27 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#e11d48" />
+    <meta name="theme-color" content="#120E0B" />
+    <meta
+      name="description"
+      content="Virundhu — QR ordering, live kitchen board, bills and reports for food stalls, meat shops and small kitchens."
+    />
     <!--
       Preconnect to Supabase — saves ~50ms on the first Realtime/PostgREST
       request by moving DNS + TLS handshake ahead of app-code discovery.
-      The URL is inlined at build time via a <script type="module"> after
-      env resolution isn't possible; hardcoding the project domain is a
-      known trade-off documented in Plan §4.3. If you rotate projects,
-      update this value or drop the hint (small perf loss, no correctness
-      impact).
+      Vite substitutes %VITE_SUPABASE_URL% from the build env, so the hint
+      always tracks the active project (audit fix: was a hardcoded
+      YOUR-PROJECT placeholder).
     -->
-    <link rel="preconnect" href="https://YOUR-PROJECT.supabase.co" crossorigin />
-    <link rel="dns-prefetch" href="https://YOUR-PROJECT.supabase.co" />
-    <title>Virundhu</title>
+    <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin />
+    <link rel="dns-prefetch" href="%VITE_SUPABASE_URL%" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    />
+    <title>Virundhu — Ordering &amp; Operations for Food Businesses</title>
   </head>
   <body class="bg-neutral-50 text-neutral-900 antialiased">
     <div id="root"></div>

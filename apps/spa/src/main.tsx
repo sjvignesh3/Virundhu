@@ -11,10 +11,18 @@ import "./styles.css";
 
 // Feed Vite env into the shared @virundhu/client package before anything
 // else runs. Must be the very first call so getSupabase() never throws.
+//
+// publicMenuBaseUrl semantics (Plan §4.1):
+//   unset  → omit here so the client falls back to "/api/menu" (edge cache)
+//   ""     → explicit bypass, read PostgREST directly (local `vite dev`)
+// Passing `?? ""` here would silently disable the CDN cache in production —
+// the exact bug the 2026-08-29 audit found. Only forward a DEFINED value.
 configureSupabaseEnv({
   url: import.meta.env.VITE_SUPABASE_URL as string,
   anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
-  publicMenuBaseUrl: (import.meta.env.VITE_PUBLIC_MENU_BASE_URL as string) ?? "",
+  ...(import.meta.env.VITE_PUBLIC_MENU_BASE_URL !== undefined
+    ? { publicMenuBaseUrl: import.meta.env.VITE_PUBLIC_MENU_BASE_URL as string }
+    : {}),
 });
 
 initSentry();

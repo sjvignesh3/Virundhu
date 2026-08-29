@@ -8,7 +8,7 @@ import { test, expect } from "@playwright/test";
  *   1. open the public menu for a known slug,
  *   2. add an item to the cart,
  *   3. place the order,
- *   4. land on /menu/:slug/success/:orderNumber,
+ *   4. land on /order/:slug/success/:orderNumber,
  *   5. assert the receipt renders the order number, status and total.
  *
  * Requires staging Supabase (same gating as auth.spec.ts) plus a seeded,
@@ -28,7 +28,9 @@ test.describe("public checkout → success (requires live Supabase)", () => {
   test.skip(!supabaseReady, "E2E_SUPABASE_* not set");
 
   test("customer can place an order and see the receipt", async ({ page }) => {
+    // /menu/:slug must 301 to /order/:slug (legacy-QR canonical URL).
     await page.goto(`/menu/${slug}`);
+    await expect(page).toHaveURL(new RegExp(`/order/${slug}$`), { timeout: 15_000 });
 
     // Menu loaded — the store heading is visible.
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible({
@@ -36,7 +38,7 @@ test.describe("public checkout → success (requires live Supabase)", () => {
     });
 
     // Add the first available product to the cart.
-    const addButton = page.getByRole("button", { name: /^add$/i }).first();
+    const addButton = page.getByRole("button", { name: /add$/i }).first();
     await expect(addButton).toBeVisible();
     await addButton.click();
 
@@ -50,7 +52,7 @@ test.describe("public checkout → success (requires live Supabase)", () => {
 
     // Redirected to the success page.
     await expect(page).toHaveURL(
-      new RegExp(`/menu/${slug}/success/[^/]+$`),
+      new RegExp(`/order/${slug}/success/[^/]+$`),
       { timeout: 15_000 },
     );
 
@@ -59,14 +61,14 @@ test.describe("public checkout → success (requires live Supabase)", () => {
 
     // Order number is echoed from the URL into the receipt card.
     const orderNumber = page.url().split("/").pop()!;
-    await expect(page.getByText(`#${orderNumber}`)).toBeVisible();
+    await expect(page.getByText(orderNumber)).toBeVisible();
 
-    // Receipt body resolves via public_order_lookup — status + total shown.
-    await expect(page.getByText(/status/i)).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(/^total$/i)).toBeVisible();
+    // Receipt body resolves via public_order_lookup — items + total shown.
+    await expect(page.getByText(/items/i)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/total to pay|total paid/i)).toBeVisible();
 
-    // Back-to-menu link returns to the store.
-    await page.getByRole("link", { name: /back to menu/i }).click();
-    await expect(page).toHaveURL(new RegExp(`/menu/${slug}$`));
+    // Order-more link returns to the store.
+    await page.getByRole("link", { name: /order more/i }).click();
+    await expect(page).toHaveURL(new RegExp(`/order/${slug}$`));
   });
 });

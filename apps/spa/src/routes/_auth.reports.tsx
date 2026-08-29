@@ -1,55 +1,82 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-import { reportsKeys, reportsRepo } from "@virundhu/client";
+import { useState } from "react";
+import { toast } from "sonner";
+import {
+  dashboardKeys,
+  dashboardRepo,
+  reportsKeys,
+  reportsRepo,
+} from "@virundhu/client";
+import type { DashboardRange } from "@virundhu/client";
 import { useActiveStoreId } from "@/lib/useActiveStoreId";
 import { PageHeader } from "@/components/PageHeader";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { NoStoreState } from "@/components/NoStoreState";
+import { formatCurrency } from "@/lib/format";
+import { IconRupee, IconBag, IconChart } from "@/components/icons";
+import { cn } from "@/lib/cn";
 
 export const Route = createFileRoute("/_auth/reports")({
   component: ReportsPage,
 });
 
+const RANGES: { key: DashboardRange; label: string; days: number | null }[] = [
+  { key: "today", label: "Today", days: 0 },
+  { key: "7d", label: "7 days", days: 7 },
+  { key: "30d", label: "30 days", days: 30 },
+  { key: "all", label: "All time", days: null },
+];
+
+function isoDaysAgo(days: number): string {
+  return new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+}
+
 function ReportsPage() {
   const storeId = useActiveStoreId();
-  if (!storeId) return <div className="p-6 text-sm text-neutral-500">Loading store…</div>;
+  if (!storeId) return <NoStoreState />;
   return <ReportsInner storeId={storeId} />;
 }
 
 function ReportsInner({ storeId }: { storeId: string }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
-  const [from, setFrom] = useState(weekAgo);
-  const [to, setTo] = useState(today);
+  const [range, setRange] = useState<DashboardRange>("today");
 
   const q = useQuery({
-    queryKey: reportsKeys.sales(storeId, from, to),
-    queryFn: () => reportsRepo.sales(storeId, from, to),
+    queryKey: [...dashboardKeys.summary(storeId), range],
+    queryFn: () => dashboardRepo.summary(storeId, range),
   });
 
-  const totals = useMemo(() => {
-    const rows = q.data ?? [];
-    return {
-      orders: rows.length,
-      revenue: rows.reduce((s, r) => s + r.total_amount, 0),
-      tax: rows.reduce((s, r) => s + r.tax_amount, 0),
-    };
-  }, [q.data]);
+  const rangeDef = RANGES.find((r) => r.key === range) ?? { key: "today" as const, label: "Today", days: 0 };
+  const csvFrom = rangeDef.days === null ? "2000-01-01" : isoDaysAgo(rangeDef.days);
+  const csvTo = isoDaysAgo(0);
 
-  function downloadCsv() {
-    const rows = q.data ?? [];
+  // Rows only fetched lazily for CSV export — the stat cards come from the
+  // single dashboard_summary RPC.
+  const rows = useQuery({
+    queryKey: reportsKeys.sales(storeId, csvFrom, csvTo),
+    queryFn: () => reportsRepo.sales(storeId, csvFrom, csvTo),
+    enabled: false,
+  });
+
+  async function downloadCsv() {
+    const res = await rows.refetch();
+    const data = res.data ?? [];
+    if (!data.length) {
+      toast.info("No orders in this window to export.");
+      return;
+    }
     const header = "order_number,created_at,status,customer,items,subtotal,tax,total\n";
-    const body = rows
+    const body = data
       .map((r) =>
         [
           r.order_number,
           r.created_at,
           r.status,
-          (r.customer_name ?? "").replace(/,/g, " "),
+          `"${(r.customer_name ?? "").replace(/"/g, '""')}"`,
           r.items,
-          (r.subtotal / 100).toFixed(2),
-          (r.tax_amount / 100).toFixed(2),
-          (r.total_amount / 100).toFixed(2),
+          // Money is rupees end-to-end — no /100 (audit fix).
+          r.subtotal.toFixed(2),
+          r.tax_amount.toFixed(2),
+          r.total_amount.toFixed(2),
         ].join(","),
       )
       .join("\n");
@@ -57,42 +84,45 @@ function ReportsInner({ storeId }: { storeId: string }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `sales_${from}_${to}.csv`;
+    a.download = `sales_${range}_${csvTo}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
 
+  const s = q.data;
+  const cancelRate =
+    s && s.orderCount > 0 ? Math.round((s.cancelledCount / s.orderCount) * 100) : 0;
+  const topMax = Math.max(1, ...(s?.topProducts.map((p) => p.qty) ?? [1]));
+
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="p-4 md:p-6 space-y-4 max-w-5xl">
       <PageHeader
-        title="Sales report"
-        subtitle={`${from} → ${to}`}
+        title="Reports"
+        subtitle="Revenue, orders, and best-sellers over your chosen window."
         actions={
-          <button className="btn btn-outline" onClick={downloadCsv} disabled={!q.data?.length}>
-            Download CSV
-          </button>
+          <>
+            <div className="flex rounded-xl border border-neutral-200 overflow-hidden">
+              {RANGES.map((r) => (
+                <button
+                  key={r.key}
+                  onClick={() => setRange(r.key)}
+                  className={cn(
+                    "px-3.5 py-2 text-sm font-semibold transition-colors",
+                    range === r.key
+                      ? "bg-brand text-white"
+                      : "text-neutral-500 hover:bg-neutral-100",
+                  )}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            <button className="btn btn-outline" onClick={downloadCsv} disabled={rows.isFetching}>
+              ⬇ {rows.isFetching ? "Exporting…" : "Export CSV"}
+            </button>
+          </>
         }
       />
-
-      <div className="card p-3 flex flex-col md:flex-row gap-2">
-        <input type="date" className="input md:flex-1" value={from} onChange={(e) => setFrom(e.target.value)} />
-        <input type="date" className="input md:flex-1" value={to} onChange={(e) => setTo(e.target.value)} />
-      </div>
-
-      <div className="grid grid-cols-3 gap-3">
-        <div className="card p-3">
-          <div className="text-xs uppercase text-neutral-500">Orders</div>
-          <div className="text-xl font-semibold">{totals.orders}</div>
-        </div>
-        <div className="card p-3">
-          <div className="text-xs uppercase text-neutral-500">Revenue</div>
-          <div className="text-xl font-semibold">{formatCurrency(totals.revenue)}</div>
-        </div>
-        <div className="card p-3">
-          <div className="text-xs uppercase text-neutral-500">Tax</div>
-          <div className="text-xl font-semibold">{formatCurrency(totals.tax)}</div>
-        </div>
-      </div>
 
       {q.isLoading ? (
         <div className="text-sm text-neutral-500">Loading…</div>
@@ -100,25 +130,78 @@ function ReportsInner({ storeId }: { storeId: string }) {
         <div className="card p-4 border-red-200 bg-red-50 text-red-700 text-sm">
           {(q.error as Error).message}
         </div>
-      ) : (
-        <div className="card divide-y">
-          {q.data?.map((r) => (
-            <div key={r.order_number} className="p-3 flex items-center gap-3">
-              <div className="text-sm font-medium">#{r.order_number}</div>
-              <div className="text-xs text-neutral-500 flex-1 truncate">
-                {formatDate(r.created_at)} · {r.customer_name ?? "walk-in"}
+      ) : s ? (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <Stat icon={<IconRupee />} label="Revenue" value={formatCurrency(s.revenue)} />
+            <Stat icon={<IconBag />} label="Completed Orders" value={s.completedCount} />
+            <Stat
+              icon={<IconChart />}
+              label="Avg Ticket"
+              value={formatCurrency(s.avgOrderValue)}
+            />
+            <Stat
+              icon={<IconChart />}
+              label="Cancel Rate"
+              value={`${cancelRate}%`}
+              hint={`${s.cancelledCount} cancelled`}
+            />
+          </div>
+
+          <div className="card p-5">
+            <h2 className="font-bold">Top Items</h2>
+            <p className="text-sm text-neutral-500 mb-4">
+              Sorted by quantity sold in this window.
+            </p>
+            {s.topProducts.length === 0 ? (
+              <p className="text-sm text-neutral-500">No completed orders in this window.</p>
+            ) : (
+              <div className="space-y-4">
+                {s.topProducts.map((p, i) => (
+                  <div key={`${p.product_id ?? "row"}-${i}`}>
+                    <div className="flex items-center gap-3 text-sm">
+                      <span className="w-6 h-6 rounded-md bg-neutral-100 text-neutral-500 text-xs grid place-items-center font-bold">
+                        {i + 1}
+                      </span>
+                      <span className="font-semibold flex-1 truncate">{p.name}</span>
+                      <span className="text-neutral-500">
+                        {p.qty} sold · {formatCurrency(p.revenue)}
+                      </span>
+                    </div>
+                    <div className="mt-1.5 h-1.5 rounded-full bg-neutral-100 overflow-hidden">
+                      <div
+                        className="h-full bg-brand rounded-full"
+                        style={{ width: `${Math.max(6, (p.qty / topMax) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="text-xs badge bg-neutral-100">{r.status.toLowerCase()}</div>
-              <div className="text-sm font-semibold tabular-nums">
-                {formatCurrency(r.total_amount)}
-              </div>
-            </div>
-          ))}
-          {q.data?.length === 0 ? (
-            <div className="p-6 text-center text-neutral-500 text-sm">No orders in this range</div>
-          ) : null}
-        </div>
-      )}
+            )}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function Stat({
+  icon,
+  label,
+  value,
+  hint,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+  hint?: string;
+}) {
+  return (
+    <div className="card p-4">
+      <div className="stat-icon mb-3">{icon}</div>
+      <div className="text-xs text-neutral-500">{label}</div>
+      <div className="text-2xl font-extrabold mt-0.5 tabular-nums">{value}</div>
+      {hint ? <div className="text-xs text-neutral-400 mt-0.5">{hint}</div> : null}
     </div>
   );
 }

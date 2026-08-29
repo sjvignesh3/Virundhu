@@ -28,6 +28,8 @@ export const STORE_DETAIL_COLUMNS = [
   "description",
   "phone",
   "address",
+  "currency",
+  "tax_rate",
   "upi_id",
   "logo_url",
   "image_url",
@@ -87,6 +89,13 @@ export const ORDER_LIST_COLUMNS = [
   "updated_at",
   "completed_at",
   "cancelled_at",
+].join(", ");
+
+/** Live-board projection — list columns plus a lightweight item summary so
+ * kitchen cards can show WHAT to cook without a per-order detail fetch. */
+export const ORDER_LIVE_COLUMNS = [
+  ORDER_LIST_COLUMNS,
+  "items:order_items(product_name,quantity)",
 ].join(", ");
 
 export const ORDER_DETAIL_COLUMNS = [

@@ -106,10 +106,16 @@ function Field({
   hint,
   placeholder,
 }: FieldProps) {
+  // Stable id derived from the label so <label htmlFor> associates with the
+  // input — screen readers and Playwright's getByLabel both need it.
+  const id = `su-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
   return (
     <div>
-      <label className="block text-sm mb-1">{label}</label>
+      <label className="block text-sm font-medium mb-1" htmlFor={id}>
+        {label}
+      </label>
       <input
+        id={id}
         type={type}
         className="input"
         value={value}

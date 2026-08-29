@@ -951,4 +951,121 @@ follow-ups — the change is entirely self-contained.
 
 - **Razorpay integration**. Flip `RAZORPAY_ENABLED=1`, uncomment `[functions.razorpay-webhook]`, add the `perform public.mark_payment_paid(...)` glue at the RPC layer, follow Runbook §8.4.
 - **WhatsApp notifications**. Flip `NOTIFICATIONS_ENABLED=1`, uncomment `[functions.notify-order-transition]`, restore the `perform public.notify_order_transition(...)` call at the tail of `orders_advance_status` / `orders_cancel`, wire `EDGE_SHARED_SECRET` + `app.edge_url` GUCs, follow Runbook §8.7.
-- **Owner-side UPI ID edit UI** in Settings — currently signup-only. Repo layer already supports it via `storesRepo.update`; the form is Stage 8+ work.
+- **Owner-side UPI ID edit UI** in Settings — currently signup-only. Repo layer already supports it via `storesRepo.update`; the form is Stage 8+ work. *(Shipped in Stage 8.)*
+
+---
+
+## Stage 8 · Audit Fixes & Legacy UI/UX Parity
+
+**Trigger:** Independent verification audit (2026-08-29) ran the full stack for
+the first time — migrations + pgTAP on Docker, all Node suites, and a scripted
+browser walkthrough — and found five ship blockers plus a set of feature gaps
+vs the legacy product (`Docs/Screenshots`, food-cart-web-swart.vercel.app).
+
+**Status:** ✅ Complete. All blockers fixed and re-verified live; owner console
+and storefront rebuilt to the legacy dark/orange design.
+
+### 1. Ship blockers fixed (all reproduced before, re-verified after)
+
+| # | Defect | Fix | Verified by |
+|---|--------|-----|-------------|
+| 1 | **Money-unit mismatch** — SPA treated DB rupee values as paise (`formatCurrency(x/100)`, product form saved `×100`). ₹180 rendered ₹2; owner-entered ₹50 stored as 5000.00 and customers were charged 100×. | `apps/spa/src/lib/format.ts` is rupees-only (+`formatCurrencyExact`, `formatAgo`); product form and reports CSV no longer convert. | Browser: menu shows ₹40/₹180; UI-created "Ghee Dosa ₹50" stored `50.00`; order totals 40+5% = ₹42. |
+| 2 | **Email logins disabled** — `[auth.email] enable_signup=false` maps to GoTrue's provider switch → `422 email_provider_disabled` for every sign-in. | `supabase/config.toml` sets it `true` (public signup stays blocked by top-level `auth.enable_signup=false`). | Live login as seeded owner. |
+| 3 | **Realtime never fired** — the `supabase_realtime` publication contained zero tables. | Migration `20260901002600` adds `public.orders` (idempotent; RLS still scopes events). | Order placed via anon RPC appeared on the open live board in <3 s without refresh. |
+| 4 | **Receipt page unreachable** — success route was a child of the menu route which rendered no `<Outlet/>`. | Success route un-nested via `order.$slug_.success.$orderNumber.tsx`; canonical customer URL moved back to **/order/:slug** (matches printed QRs); `/menu/:slug` 30x-redirects. | Browser: checkout lands on the full receipt (FC number, items, totals, wait notice, Order more). |
+| 5 | **pgTAP suite failed 5/8 files** (non-UUID JWT subs, anon-grant mismatches, `perform ok()` in DO blocks swallowing TAP rows, comment-defeated assertion, plan counts) — CI `sql` job could never gate `deploy`. | Tests 01/02/05/06/07 repaired; 02 now locks in Stage 7 anon checkout + FC numbering; new `08_stage8_fixes.sql` (7 asserts) locks the fixes. | `supabase test db` → **9/9 files PASS** (first fully green run). |
+
+### 2. Correctness & scalability fixes (same migration/PR)
+
+- **`next_order_number` → `FC-1001` format** (per-store, monotonic, no daily
+  reset) — restores the legacy contract Plan promised to keep; sentinel-day row
+  in `order_sequences`, advisory-lock protected.
+- **`dashboard_summary` v2** — counts *placed* orders (pre-fix a fresh order
+  showed "0 orders"), adds `completedCount`/`cancelledCount`/`activeCount`,
+  an `'all'` range, and a `menu` block (total/available/unavailable/lowStock/
+  outOfStock) so the dashboard renders in one RPC round-trip.
+- **`store_daily_metrics_v`** rebuilt as an owner-rights `security_barrier`
+  view (the `security_invoker` version was unreadable by every role — revoked
+  matview underneath). pgTAP 08 now actually SELECTs from it.
+- **`notify_order_transition`** now calls `net.http_post` — the old
+  `extensions.net.http_post` three-part name errored on every call (silently
+  swallowed), which made the documented "one-line re-enable" path a no-op.
+- **`mark_payment_paid`** takes an advisory lock on the provider payment id —
+  concurrent first deliveries serialize instead of dying on the unique index.
+- **razorpay-webhook** releases its `idempotency_keys` row when the apply RPC
+  fails, so a provider retry re-attempts instead of short-circuiting; a
+  transient slug-check error in **auth-signup** now returns 500, not
+  `SLUG_TAKEN`.
+- **Edge menu proxy re-enabled in prod** — `main.tsx` passed `?? ""` for
+  `VITE_PUBLIC_MENU_BASE_URL`, silently bypassing the CDN cache everywhere;
+  only a *defined* value is forwarded now (unset → `/api/menu` default).
+- **`no-star-select` CI gate** resolves roots from the repo root and fails on
+  missing defaults — it had been scanning zero files while printing success.
+- **Session bootstrap failure** resolves to `anonymous` instead of hanging
+  route guards on a blank screen; `NoStoreState` distinguishes "loading" from
+  "account has no store".
+- `index.html` preconnect uses `%VITE_SUPABASE_URL%` (Vite HTML env
+  replacement) instead of a hardcoded placeholder; `.env.example` restored;
+  `db-types.ts` gains `provision_tenant.p_store_upi_id`.
+
+### 3. Legacy UI/UX parity (Docs/Screenshots → current stack)
+
+- **Theme** — dark-first warm ground + orange accent replicated via a
+  deliberate semantic remap of the Tailwind neutral scale
+  (`apps/spa/tailwind.config.ts`); Inter via Google Fonts; component classes
+  (`card`, `btn`, `input`, `nav-item`, `stat-icon`) restyled once.
+- **Marketing landing** (`/`) — hero ("Your Shop, Fully Digital"), badge, stat
+  row (₹0/60s/24-7), demo owner-panel card with Live QR Orders + low-stock
+  callout, features grid, 3-step how-it-works, copy matching the hosted site.
+- **Owner shell** — icon sidebar (Dashboard, Live Orders, Products,
+  Categories, History, Reports, QR Codes, Printers, Settings), top bar with
+  page title + sign-out, "Cart is open/closed" footer driven by
+  `stores.accept_orders`, real store name in the header.
+- **Dashboard** — welcome header + quick actions (View QR / Live Orders / Add
+  Product), TODAY row (Revenue·completed, Orders·placed, Active·kitchen,
+  Completed), MENU row (product health), Live Orders preview with item lines,
+  Top Items.
+- **Products** — card grid with availability switch, ✏️ edit and 🗑 delete
+  (both new), search box + category filter, unit dropdown bound to the shared
+  `UNITS` enum (was free text), labelled inputs (a11y + Playwright).
+- **Live Orders** — 4-column kanban with status pills, "N in queue" chip,
+  Refresh, cards show `n× item` lines (new `ORDER_LIVE_COLUMNS` projection →
+  kitchen sees what to cook), optimistic advance **and cancel** (cancel now
+  uses a styled confirm dialog, not `window.confirm`).
+- **History** — search + from/to date filters (7-day default) wired to the
+  repo params that already existed; `keepPreviousData` pagination.
+- **Reports** — Today/7d/30d/All-time tabs, Revenue/Completed/Avg-Ticket/
+  Cancel-Rate stat cards, Top Items with quantity bars, CSV export in rupees.
+- **QR Codes page (new)** — client-side `qrcode` lib, Menu QR card (Download
+  PNG / Print poster via print window), Menu link card (copy/open + print
+  tip). Points at `/order/:slug`.
+- **Settings** — full editor (name, Tamil name, phone, address, accept-orders
+  and Tamil-name toggles, tax rate, minimum order value, **UPI VPA** with
+  `upiVpaSchema` validation). `STORE_DETAIL_COLUMNS` gained
+  `currency`/`tax_rate`, fixing the fallback "INR/0" display.
+- **Storefront** — hero with Open/Closed pill + prep time, sticky category
+  chips with scroll-to-section, qty steppers, cart drawer matching the legacy
+  sheet (per-line steppers + Remove, name/phone/note, payment radios),
+  client-side minimum-order-value guard, receipt page with UPI retry button
+  when payment is pending and the store has a VPA.
+
+### 4. Verification matrix (2026-08-29, all executed — none "code only")
+
+| Check | Result |
+|---|---|
+| `supabase db reset` (26 migrations + seed, PG17) | ✅ clean |
+| `supabase test db` (pgTAP 00–08) | ✅ **9/9 files PASS** |
+| `@virundhu/shared` / `client` / `spa` unit | ✅ 9 / 20 / 18 |
+| SPA build + `tsc -b` + eslint (`--max-warnings 0`) | ✅ |
+| Bundle (gzip, incl. new qrcode dep) | ✅ ~177.5 KB / 180 KB budget (tight — next feature should lazy-load a route) |
+| `no-star-select` gate (now scanning real files) | ✅ 0 offences |
+| Browser walkthrough (landing, menu, cart, CASH checkout, receipt, login, dashboard, live board **realtime <3 s**, QR page, settings save, UPI toggle-on, product create ₹50→50.00) | ✅ |
+
+### 5. Notes / follow-ups
+
+- Local Windows dev: vitest 4 needs `npm i --no-save @rolldown/binding-win32-x64-msvc`
+  after a fresh `npm ci` (npm optional-deps bug; CI on Linux unaffected).
+- Bundle budget headroom is ~2.5 KB — convert the heaviest owner route to
+  `createLazyFileRoute` before adding the next feature.
+- Old `A-YYYYMMDD-NNNN` order numbers in existing dev databases coexist fine
+  with the FC counter (unique per store either way); prod has no legacy rows.

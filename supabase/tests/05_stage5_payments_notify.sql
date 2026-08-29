@@ -89,7 +89,7 @@ set local role authenticated;
 select set_config(
   'request.jwt.claims',
   json_build_object(
-    'sub', 'owner-5',
+    'sub', 'eeee5555-aaaa-0000-0000-000000000001',
     'app_metadata', json_build_object(
       'store_ids', json_build_array('eeee5555-5555-5555-5555-000000000001'),
       'role', 'OWNER'
@@ -105,12 +105,13 @@ select is(
   'orders_advance_status completes despite trailing notify fan-out'
 );
 
--- ── (7) idempotency_keys invisible to anon (RLS with no policies) ───────────
+-- ── (7) idempotency_keys invisible to anon (grants revoked entirely) ────────
 set local role anon;
-select is(
-  (select count(*)::int from public.idempotency_keys),
-  0,
-  'anon cannot see idempotency_keys rows'
+select throws_ok(
+  $$ select count(*) from public.idempotency_keys $$,
+  '42501',
+  null,
+  'anon cannot read idempotency_keys (permission denied)'
 );
 
 select * from finish();

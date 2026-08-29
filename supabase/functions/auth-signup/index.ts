@@ -64,8 +64,16 @@ Deno.serve(async (req) => {
   const admin = adminClient();
 
   // ─── slug availability ────────────────────────────────────────────────────
+  // A transient RPC error must NOT masquerade as "taken" — report it as a
+  // retryable 500 instead of telling the user their URL is unavailable.
   const slugCheck = await admin.rpc("store_slug_available", { p_slug: input.storeSlug });
-  if (slugCheck.error || slugCheck.data !== true) {
+  if (slugCheck.error) {
+    return new Response(
+      JSON.stringify({ code: "INTERNAL", message: "Could not verify slug availability. Try again." }),
+      { status: 500, headers },
+    );
+  }
+  if (slugCheck.data !== true) {
     return new Response(
       JSON.stringify({ code: "SLUG_TAKEN", message: "That store URL is already taken." }),
       { status: 409, headers },
