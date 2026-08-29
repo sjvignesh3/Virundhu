@@ -51,6 +51,7 @@ enable_confirmations = false
 [edge_runtime]
 enabled = true
 policy = "per_worker"
+import_map = "./import_map.json"
 
 [analytics]
 enabled = false
