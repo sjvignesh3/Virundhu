@@ -259,7 +259,12 @@ $$;
 grant execute on function public.dashboard_summary(uuid, text) to authenticated;
 
 -- ─── reports_sales_rows ───────────────────────────────────────────────────────
-create or replace function public.reports_sales_rows(
+-- The 001500 version returned (order_no, placed_at, tax, total, ...). We are
+-- changing the OUT column list, which CREATE OR REPLACE cannot do — Postgres
+-- rejects a shape change on OUT/RETURNS TABLE columns with 42P13. Drop first.
+drop function if exists public.reports_sales_rows(uuid, date, date);
+
+create function public.reports_sales_rows(
   p_store_id uuid,
   p_from     date,
   p_to       date
