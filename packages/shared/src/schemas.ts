@@ -9,8 +9,8 @@
 
 import { z } from "zod";
 import {
+  ACTIVE_PAYMENT_METHODS,
   LANGUAGES,
-  PAYMENT_METHODS,
   PAYMENT_STATUSES,
   PRINTER_CONNECTION_STATUSES,
   PRINTER_TYPES,
@@ -54,6 +54,33 @@ export const storeSlugSchema = z
   .max(50)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "slug must be kebab-case (a-z, 0-9, -)");
 
+/**
+ * UPI VPA (Virtual Payment Address) — `<handle>@<psp>`.
+ *
+ * NPCI allows 2–256 chars total; we tighten to 3–100 for realistic input and
+ * enforce a conservative character class that catches typos (spaces, quotes,
+ * emoji) without rejecting legitimate handles like `merchant.co@okhdfcbank`.
+ *
+ * The regex intentionally does not attempt provider-list validation — PSPs
+ * proliferate too fast to keep an allow-list current.
+ */
+export const upiVpaSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(3)
+  .max(100)
+  .regex(
+    /^[a-z0-9][a-z0-9._-]{1,49}@[a-z][a-z0-9]{2,29}$/,
+    "Enter a valid UPI ID (e.g. name@okhdfcbank)",
+  );
+
+const optionalUpi = () =>
+  z
+    .union([z.literal(""), upiVpaSchema])
+    .optional()
+    .transform((v) => (v ? v : undefined));
+
 // -- Signup (owner + store, single transaction) -------------------------------
 
 /**
@@ -84,6 +111,10 @@ export const signupSchema = z.object({
   storeDescription: optionalTrimmed(1000),
   storePhone: optionalTrimmed(30),
   storeAddress: optionalTrimmed(300),
+  // UPI VPA collected at signup so the checkout "Pay via UPI" button on the
+  // storefront can deep-link to the customer's UPI app. Optional — a store
+  // with no UPI ID is CASH-only.
+  storeUpiId: optionalUpi(),
 });
 export type SignupInput = z.infer<typeof signupSchema>;
 
@@ -96,6 +127,7 @@ export const createStoreSchema = z.object({
   address: optionalTrimmed(300),
   logoUrl: optionalTrimmed(500),
   imageUrl: optionalTrimmed(500),
+  upiId: optionalUpi(),
   status: z.enum(STORE_STATUSES).default("OPEN"),
 });
 export type CreateStoreInput = z.infer<typeof createStoreSchema>;
@@ -169,6 +201,9 @@ export const publicCreateOrderSchema = z.object({
     })
     .default({}),
   notes: optionalTrimmed(500),
+  // Customer's chosen payment method. Defaults to CASH so callers that
+  // predate this field keep working.
+  paymentMethod: z.enum(ACTIVE_PAYMENT_METHODS).default("CASH"),
   items: z.array(publicCartLineSchema).min(1, "Cart cannot be empty"),
 });
 export type PublicCreateOrderInput = z.infer<typeof publicCreateOrderSchema>;
@@ -212,9 +247,22 @@ export type UpdatePrinterInput = z.infer<typeof updatePrinterSchema>;
 // -- Payment override (admin/simulated) ---------------------------------------
 
 export const paymentSchema = z.object({
-  method: z.enum(PAYMENT_METHODS).default("SIMULATED"),
-  status: z.enum(PAYMENT_STATUSES).default("PAID"),
+  method: z.enum(ACTIVE_PAYMENT_METHODS).default("CASH"),
+  status: z.enum(PAYMENT_STATUSES).default("PENDING"),
 });
+
+// -- Customer checkout payment selection --------------------------------------
+
+/**
+ * Customer-side payment intent at checkout.
+ *
+ *   CASH → order is placed as-is; PAID collected in-person by the vendor.
+ *   UPI  → order is placed with `paymentMethod=UPI`; the SPA then opens
+ *          `upi://pay?...` so the customer's UPI app completes the transfer.
+ *          Reconciliation stays manual (v1) until Razorpay is wired.
+ */
+export const checkoutPaymentSchema = z.enum(ACTIVE_PAYMENT_METHODS);
+export type CheckoutPayment = z.infer<typeof checkoutPaymentSchema>;
 
 // -- Store user (owner-adds-member) -------------------------------------------
 

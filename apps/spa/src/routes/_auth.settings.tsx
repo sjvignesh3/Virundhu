@@ -36,8 +36,13 @@ function SettingsInner({ storeId }: { storeId: string }) {
           <Row label="Slug" value={q.data?.slug ?? "—"} />
           <Row label="Currency" value={q.data?.currency ?? "INR"} />
           <Row label="Tax rate" value={String(q.data?.tax_rate ?? "0")} />
+          <Row
+            label="UPI ID"
+            value={q.data?.upi_id ?? "Not set — customers pay cash only"}
+          />
           <p className="text-xs text-neutral-500 pt-2">
-            Full editing UI ships in Stage 4. Row-level fields are already exposed via the repo.
+            UPI ID is set at signup. Editing UI lands next — email support to
+            update in the meantime.
           </p>
         </div>
       )}

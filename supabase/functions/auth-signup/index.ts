@@ -88,11 +88,14 @@ Deno.serve(async (req) => {
   const userId = created.data.user.id;
 
   // ─── create store + membership (SECURITY DEFINER RPC → single txn) ────────
+  // Stage 7 : forward the (optional) storeUpiId so the vendor's VPA lands
+  // on the fresh `stores` row for the checkout "Pay via UPI" button.
   const provision = await admin.rpc("provision_tenant", {
-    p_user_id:    userId,
-    p_store_name: input.storeName,
-    p_store_slug: input.storeSlug,
-    p_owner_name: input.name,
+    p_user_id:      userId,
+    p_store_name:   input.storeName,
+    p_store_slug:   input.storeSlug,
+    p_owner_name:   input.name,
+    p_store_upi_id: input.storeUpiId ?? null,
   });
   if (provision.error) {
     // best-effort compensating action

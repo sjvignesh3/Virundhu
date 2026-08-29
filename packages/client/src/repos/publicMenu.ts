@@ -30,6 +30,12 @@ export interface PublicMenuStore {
   address: string | null;
   logoUrl: string | null;
   imageUrl: string | null;
+  /**
+   * Vendor Virtual Payment Address. When present, the storefront can
+   * generate a `upi://pay?pa=...` intent link on "Pay via UPI". Null →
+   * checkout is CASH-only.
+   */
+  upiId: string | null;
   status: "OPEN" | "CLOSED";
   settings: {
     defaultLanguage: "en" | "ta";

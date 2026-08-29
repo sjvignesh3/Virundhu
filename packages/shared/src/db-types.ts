@@ -58,6 +58,7 @@ export interface StoreRow {
   image_url: string | null;
   address: string | null;
   phone: string | null;
+  upi_id: string | null;
   settings: Json;
   default_language: Language;
   show_tamil_names: boolean;
