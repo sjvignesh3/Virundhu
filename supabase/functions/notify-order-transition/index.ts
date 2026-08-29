@@ -48,6 +48,13 @@ Deno.serve(async (req) => {
   const cors = preflight(req);
   if (cors) return cors;
 
+  // Stage 7 kill-switch. WhatsApp / notification dispatch is deferred; the
+  // function stays in the tree as boilerplate but any request without the
+  // explicit opt-in gets 501 so misrouted traffic surfaces in logs.
+  if (Deno.env.get("NOTIFICATIONS_ENABLED") !== "1") {
+    return json({ code: "NOT_IMPLEMENTED", detail: "notifications disabled in v1" }, 501, req);
+  }
+
   if (req.method !== "POST") {
     return json({ code: "METHOD_NOT_ALLOWED" }, 405, req);
   }

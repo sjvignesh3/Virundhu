@@ -1,6 +1,16 @@
 /**
  * razorpay-webhook Edge Function (Plan §5.3 + §5.4).
  * ──────────────────────────────────────────────────
+ * BOILERPLATE — Stage 7 deferred Razorpay. This handler is retained so the
+ * abstraction seam and its tests continue to compile, but the function is
+ * NOT deployed (see supabase/config.toml) and returns 501 unless the
+ * operator explicitly sets `RAZORPAY_ENABLED=1` on the function secrets.
+ *
+ * To re-enable when Razorpay goes live: set RAZORPAY_ENABLED=1,
+ * uncomment the `[functions.razorpay-webhook]` block in config.toml,
+ * redeploy, and follow Runbook §8.4.
+ *
+ * Original design:
  * Receives Razorpay webhook events, verifies the HMAC signature against the
  * RAW body, and applies `payment.captured` idempotently via `mark_payment_paid`.
  *
@@ -43,6 +53,13 @@ function json(body: unknown, status: number): Response {
 }
 
 Deno.serve(async (req) => {
+  // Stage 7 kill-switch — the function ships disabled by default. Anything
+  // reaching this endpoint without the explicit opt-in gets 501 so
+  // misrouted traffic is easy to spot in logs.
+  if (Deno.env.get("RAZORPAY_ENABLED") !== "1") {
+    return json({ code: "NOT_IMPLEMENTED", detail: "razorpay disabled in v1" }, 501);
+  }
+
   if (req.method !== "POST") {
     return json({ code: "METHOD_NOT_ALLOWED" }, 405);
   }

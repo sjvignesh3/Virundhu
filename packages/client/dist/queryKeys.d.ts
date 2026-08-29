@@ -60,4 +60,5 @@ export declare const reportsKeys: {
 export declare const publicMenuKeys: {
     all: readonly ["public-menu"];
     bySlug: (slug: string) => readonly ["public-menu", "by-slug", string];
+    order: (slug: string, orderNumber: string) => readonly ["public-menu", "order", string, string];
 };

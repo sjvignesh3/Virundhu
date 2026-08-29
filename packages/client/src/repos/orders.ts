@@ -108,6 +108,9 @@ export const ordersRepo = {
       p_customer_name: input.customer.name ?? null,
       p_customer_phone: input.customer.phone ?? null,
       p_notes: input.notes ?? null,
+      // Stage 7: pass the customer-chosen method (CASH | UPI). The DB
+      // narrows any other value.
+      p_payment_method: input.paymentMethod ?? "CASH",
     });
     if (error) throw fromPostgrest(error);
     return data as unknown as OrderRow;

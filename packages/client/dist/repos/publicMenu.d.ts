@@ -8,6 +8,12 @@ export interface PublicMenuStore {
     address: string | null;
     logoUrl: string | null;
     imageUrl: string | null;
+    /**
+     * Vendor Virtual Payment Address. When present, the storefront can
+     * generate a `upi://pay?pa=...` intent link on "Pay via UPI". Null →
+     * checkout is CASH-only.
+     */
+    upiId: string | null;
     status: "OPEN" | "CLOSED";
     settings: {
         defaultLanguage: "en" | "ta";
@@ -44,6 +50,28 @@ export interface PublicMenu {
     store: PublicMenuStore;
     categories: PublicMenuCategory[];
 }
+export interface PublicOrderReceiptItem {
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+}
+export interface PublicOrderReceipt {
+    orderNumber: string;
+    status: string;
+    paymentStatus: string;
+    subtotal: number;
+    tax: number;
+    total: number;
+    placedAt: string;
+    items: PublicOrderReceiptItem[];
+}
 export declare const publicMenuRepo: {
     bySlug(slug: string): Promise<PublicMenu>;
+    /**
+     * Anonymous receipt lookup used by the success page. Backed by the
+     * `public_order_lookup(slug, order_no)` RPC — the `orders` table itself
+     * is denied to anon by RLS.
+     */
+    lookupOrder(slug: string, orderNumber: string): Promise<PublicOrderReceipt>;
 };

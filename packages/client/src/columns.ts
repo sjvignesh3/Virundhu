@@ -28,6 +28,7 @@ export const STORE_DETAIL_COLUMNS = [
   "description",
   "phone",
   "address",
+  "upi_id",
   "logo_url",
   "image_url",
   "status",

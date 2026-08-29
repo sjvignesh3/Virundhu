@@ -869,3 +869,86 @@ under 500 VUs. Live measurement is operator-gated (§4 above); the k6
 script encodes the threshold as a hard failure so CI will enforce it
 once the operator wires `TARGET_URL` and runs the perf job.
 
+
+
+---
+
+## Stage 7 · UPI / Cash-Only Checkout — Razorpay & WhatsApp Deferred
+
+**Trigger:** Product decision (2026-09-01). Neither Razorpay onboarding
+(KYC + business account) nor WhatsApp Cloud API template approvals are
+ready. Ship v1 with a **CASH + UPI-intent** checkout so vendors can
+onboard and take orders today; wire the gateway + notifications post-launch.
+
+**Status:** ✅ Complete (code + migrations + tests + docs). No operator
+follow-ups — the change is entirely self-contained.
+
+### 1. Deliverables
+
+| # | Deliverable                                                                                     | File(s)                                                                                       |
+| - | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| 1 | `stores.upi_id` column + VPA check constraint                                                   | `supabase/migrations/20260901002500_stage7_upi_cash_only.sql`                                 |
+| 2 | `provision_tenant/5` — accepts `p_store_upi_id` at signup                                       | same migration                                                                                |
+| 3 | `public_store_menu` view — exposes `store.upiId` in the JSONB payload                           | same migration                                                                                |
+| 4 | `orders_create` — defaults `payment_method` to CASH, rejects anything outside `{CASH, UPI}`, degrades UPI→CASH on a store without a VPA | same migration |
+| 5 | `orders_advance_status` / `orders_cancel` — drop the `notify_order_transition` fan-out          | same migration                                                                                |
+| 6 | Shared contract — `ACTIVE_PAYMENT_METHODS`, `upiVpaSchema`, `checkoutPaymentSchema`; `signupSchema.storeUpiId`; `publicCreateOrderSchema.paymentMethod`; `StoreRow.upi_id` | `packages/shared/src/enums.ts`, `schemas.ts`, `db-types.ts` |
+| 7 | Client — `PublicMenuStore.upiId`, `STORE_DETAIL_COLUMNS` adds `upi_id`, `ordersRepo.createFromCart` forwards `p_payment_method` | `packages/client/src/repos/{publicMenu,orders}.ts`, `columns.ts` |
+| 8 | SPA — UPI intent-URL builder + unit tests, CheckoutSheet payment radio (Cash / Pay via UPI), Settings row for UPI ID, Signup field for UPI ID | `apps/spa/src/lib/upi.ts` (+`.test.ts`), `routes/menu.$slug.tsx`, `_auth.settings.tsx`, `signup.tsx` |
+| 9 | Auth-signup Edge Function — forwards `p_store_upi_id` to `provision_tenant`                     | `supabase/functions/auth-signup/index.ts`                                                     |
+| 10| **Kill-switches** — `razorpay-webhook` and `notify-order-transition` Edge Functions now return `501 NOT_IMPLEMENTED` unless `RAZORPAY_ENABLED=1` / `NOTIFICATIONS_ENABLED=1` is set. Their entries in `config.toml` are commented out (files retained as boilerplate). | `supabase/functions/razorpay-webhook/index.ts`, `notify-order-transition/index.ts`, `supabase/config.toml` |
+| 11| pgTAP `07_*` — 7 assertions covering column, view, RPC defaults, degradation, and boilerplate retention | `supabase/tests/07_stage7_upi_cash_only.sql`                                                  |
+
+### 2. Design decisions
+
+1. **UPI intent URL, not a hosted gateway.** The SPA generates a
+   NPCI-compliant `upi://pay?pa=<vpa>&pn=<store>&am=<total>&cu=INR&tn=Order+<n>`
+   deep link. On mobile the OS hands off to the installed UPI app; on
+   desktop the browser's app chooser (or fallback silence) applies. **No
+   reconciliation is automatic** — the vendor confirms receipt in the UPI
+   app and marks the order as PAID by advancing status. This is
+   acceptable for v1 because payments are point-of-sale (pickup).
+2. **VPA validation** is a single conservative regex
+   `^[a-z0-9][a-z0-9._-]{1,49}@[a-z][a-z0-9]{2,29}$`, applied identically
+   in three places (Zod schema, DB check constraint, UPI URL builder).
+   No PSP allow-list — the ecosystem changes too fast.
+3. **Graceful degradation** — `orders_create` accepts `p_payment_method=UPI`
+   even when the store has no VPA on file and silently rewrites to CASH.
+   Rationale: a rejected checkout costs a sale.
+4. **Boilerplate retention** — the Razorpay HMAC verifier, `mark_payment_paid`
+   RPC, `idempotency_keys` table, `notify_order_transition` helper, and the
+   full NotificationDispatcher seam remain in the tree with tests still
+   running. Re-enabling is a one-line env flip + config uncomment; the
+   schema does not need to change.
+5. **DB enum kept wide** (`SIMULATED, UPI, CARD, CASH`). The narrowing
+   lives at the API surface — `ACTIVE_PAYMENT_METHODS = ["CASH", "UPI"]`
+   — so historical rows keep validating and a future Razorpay path
+   flipping back to CARD/SIMULATED doesn't require a migration.
+
+### 3. Definition-of-Done reconciliation
+
+| DoD                                                                                       | Evidence                                              |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Owner registers a store with an optional UPI ID at signup                                 | `signup.tsx` field, `signupSchema.storeUpiId`, `provision_tenant/5` |
+| UPI ID is stored on `stores` and exposed to the public menu                               | Migration 002500 §1 + §3, `public_store_menu.store.upiId` |
+| Customer picks CASH or UPI at checkout — no other options rendered                        | `PaymentOption` radio in `CheckoutSheet`, `ACTIVE_PAYMENT_METHODS` |
+| "Pay via UPI" opens the customer's UPI app with amount + order note prefilled             | `buildUpiIntentUrl` + `window.location.assign` after order create |
+| A store with no UPI ID cannot break checkout — UPI is disabled in the UI and the DB coerces to CASH | `PaymentOption` `disabled={!upiAvailable}`; pgTAP `07_*` §6 |
+| Razorpay + WhatsApp code paths are dormant (no runtime side-effects) but retained as boilerplate | Both Edge Functions return 501 unless explicitly enabled; `config.toml` blocks commented out; DB RPCs no longer call `notify_order_transition` |
+
+### 4. Test matrix
+
+| Suite                              | Command                                                             | Result       |
+| ---------------------------------- | ------------------------------------------------------------------- | ------------ |
+| `@virundhu/shared`                 | `npm test -w @virundhu/shared`                                      | ✅            |
+| `@virundhu/client`                 | `npm test -w @virundhu/client`                                      | ✅            |
+| `@virundhu/spa` (Vitest — +UPI)    | `npm test -w @virundhu/spa`                                         | ✅ (+7 UPI)   |
+| SPA lint + typecheck               | `npm run -w @virundhu/spa lint && tsc -p apps/spa`                  | ✅            |
+| pgTAP (00-07)                      | `supabase test db` (Docker + `supabase start` gate)                 | 🟡 code only  |
+| Deno (unchanged)                   | `deno test --import-map=supabase/import_map.json …`                 | 🟡 unchanged  |
+
+### 5. Deferred (post-launch, no code owed by Stage 7)
+
+- **Razorpay integration**. Flip `RAZORPAY_ENABLED=1`, uncomment `[functions.razorpay-webhook]`, add the `perform public.mark_payment_paid(...)` glue at the RPC layer, follow Runbook §8.4.
+- **WhatsApp notifications**. Flip `NOTIFICATIONS_ENABLED=1`, uncomment `[functions.notify-order-transition]`, restore the `perform public.notify_order_transition(...)` call at the tail of `orders_advance_status` / `orders_cancel`, wire `EDGE_SHARED_SECRET` + `app.edge_url` GUCs, follow Runbook §8.7.
+- **Owner-side UPI ID edit UI** in Settings — currently signup-only. Repo layer already supports it via `storesRepo.update`; the form is Stage 8+ work.

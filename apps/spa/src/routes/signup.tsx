@@ -16,6 +16,9 @@ function SignupPage() {
     name: "",
     storeName: "",
     storeSlug: "",
+    // Stage 7 — Vendor UPI VPA. Optional at signup; owner can add/edit
+    // later in Settings. When empty, customer checkout is CASH-only.
+    storeUpiId: "",
   });
   const [busy, setBusy] = useState(false);
 
@@ -60,6 +63,13 @@ function SignupPage() {
             required
             hint="Used in your storefront URL. Lowercase, hyphens only."
           />
+          <Field
+            label="UPI ID (optional)"
+            value={form.storeUpiId}
+            onChange={(v) => update("storeUpiId", v.trim().toLowerCase())}
+            hint="e.g. yourname@okhdfcbank. Customers who pick 'Pay via UPI' will pay this address. Leave blank to accept cash only."
+            placeholder="yourname@okhdfcbank"
+          />
           <button type="submit" className="btn btn-primary w-full" disabled={busy}>
             {busy ? "Creating…" : "Create account"}
           </button>
@@ -83,9 +93,19 @@ interface FieldProps {
   required?: boolean;
   minLength?: number;
   hint?: string;
+  placeholder?: string;
 }
 
-function Field({ label, value, onChange, type = "text", required, minLength, hint }: FieldProps) {
+function Field({
+  label,
+  value,
+  onChange,
+  type = "text",
+  required,
+  minLength,
+  hint,
+  placeholder,
+}: FieldProps) {
   return (
     <div>
       <label className="block text-sm mb-1">{label}</label>
@@ -96,6 +116,7 @@ function Field({ label, value, onChange, type = "text", required, minLength, hin
         onChange={(e) => onChange(e.target.value)}
         required={required}
         minLength={minLength}
+        placeholder={placeholder}
       />
       {hint ? <p className="text-xs text-neutral-500 mt-1">{hint}</p> : null}
     </div>
