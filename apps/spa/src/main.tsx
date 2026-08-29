@@ -3,11 +3,19 @@ import ReactDOM from "react-dom/client";
 import { RouterProvider } from "@tanstack/react-router";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
-import { initSessionStore } from "@virundhu/client";
+import { configureSupabaseEnv, initSessionStore } from "@virundhu/client";
 import { initSentry } from "./lib/sentry";
 import { queryClient } from "./lib/queryClient";
 import { router } from "./router";
 import "./styles.css";
+
+// Feed Vite env into the shared @virundhu/client package before anything
+// else runs. Must be the very first call so getSupabase() never throws.
+configureSupabaseEnv({
+  url: import.meta.env.VITE_SUPABASE_URL as string,
+  anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+  publicMenuBaseUrl: (import.meta.env.VITE_PUBLIC_MENU_BASE_URL as string) ?? "",
+});
 
 initSentry();
 
