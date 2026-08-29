@@ -16,8 +16,12 @@ export const Route = createFileRoute("/_auth/orders/live")({
   component: LiveOrdersPage,
 });
 
+// Stage 9: the ACCEPTED column is gone — one tap sends a NEW order straight
+// to PREPARING (state machine allows NEW → PREPARING since migration
+// 20260901002700). Legacy ACCEPTED rows render in the Preparing column with
+// their own valid next step.
 const NEXT_STATUS: Record<OrderStatus, OrderStatus | null> = {
-  NEW: "ACCEPTED",
+  NEW: "PREPARING",
   ACCEPTED: "PREPARING",
   PREPARING: "READY",
   READY: "COMPLETED",
@@ -26,17 +30,21 @@ const NEXT_STATUS: Record<OrderStatus, OrderStatus | null> = {
 };
 
 const NEXT_LABEL: Partial<Record<OrderStatus, string>> = {
-  NEW: "Accept",
+  NEW: "Start preparing",
   ACCEPTED: "Start preparing",
   PREPARING: "Mark ready",
   READY: "Complete",
 };
 
-const COLUMNS: { status: OrderStatus; label: string; pill: string }[] = [
-  { status: "NEW", label: "New", pill: "bg-brand-soft text-brand" },
-  { status: "ACCEPTED", label: "Accepted", pill: "bg-amber-100 text-amber-800" },
-  { status: "PREPARING", label: "Preparing", pill: "bg-amber-100 text-amber-800" },
-  { status: "READY", label: "Ready", pill: "bg-green-100 text-green-700" },
+const COLUMNS: { statuses: OrderStatus[]; label: string; pill: string; pillText: string }[] = [
+  { statuses: ["NEW"], label: "New", pill: "bg-brand-soft text-brand", pillText: "NEW" },
+  {
+    statuses: ["PREPARING", "ACCEPTED"],
+    label: "Preparing",
+    pill: "bg-amber-100 text-amber-800",
+    pillText: "PREPARING",
+  },
+  { statuses: ["READY"], label: "Ready", pill: "bg-green-100 text-green-700", pillText: "READY" },
 ];
 
 function LiveOrdersPage() {
@@ -129,14 +137,14 @@ function LiveInner({ storeId }: { storeId: string }) {
           {(q.error as Error).message}
         </div>
       ) : (
-        <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="grid md:grid-cols-3 gap-4">
           {COLUMNS.map((col) => {
-            const colOrders = rows.filter((o) => o.status === col.status);
+            const colOrders = rows.filter((o) => col.statuses.includes(o.status));
             return (
-              <section key={col.status}>
+              <section key={col.label}>
                 <div className="flex items-center gap-2 mb-3">
                   <span className="font-bold">{col.label}</span>
-                  <span className={cn("badge", col.pill)}>{col.status}</span>
+                  <span className={cn("badge", col.pill)}>{col.pillText}</span>
                   <span className="ml-auto text-sm text-neutral-500 tabular-nums">
                     {colOrders.length}
                   </span>

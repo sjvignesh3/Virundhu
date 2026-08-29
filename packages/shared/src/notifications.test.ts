@@ -6,7 +6,7 @@ import {
   renderNotificationText,
   shouldNotify,
   type NotificationPayload,
-} from "./notifications";
+} from "./notifications.ts";
 
 const payload: NotificationPayload = {
   orderId: "o1",
@@ -33,9 +33,11 @@ describe("notificationKindFor", () => {
 
 describe("shouldNotify", () => {
   it("accepts a legal, notifiable transition", () => {
-    const r = shouldNotify("NEW", "ACCEPTED");
+    // Stage 9.1: ACCEPTED is retired as a target — READY is the first
+    // customer-notifiable stop in the flow.
+    const r = shouldNotify("PREPARING", "READY");
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.kind).toBe("ORDER_ACCEPTED");
+    if (r.ok) expect(r.kind).toBe("ORDER_READY");
   });
 
   it("rejects a no-op transition", () => {
@@ -49,8 +51,8 @@ describe("shouldNotify", () => {
   });
 
   it("rejects a legal-but-non-notifiable transition", () => {
-    // ACCEPTED -> PREPARING is legal but intentionally not notified.
-    const r = shouldNotify("ACCEPTED", "PREPARING");
+    // NEW -> PREPARING is legal but intentionally not notified.
+    const r = shouldNotify("NEW", "PREPARING");
     expect(r).toEqual({ ok: false, reason: "NON_NOTIFIABLE_STATUS" });
   });
 });

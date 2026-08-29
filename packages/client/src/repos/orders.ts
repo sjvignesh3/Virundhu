@@ -127,6 +127,27 @@ export const ordersRepo = {
     return data as unknown as OrderRow;
   },
 
+  /**
+   * Walk-in counter sale (Stage 9). Owner-only RPC that creates the order
+   * already COMPLETED + PAID — it lands in history/dashboard revenue and
+   * never appears on the live board.
+   */
+  async createCounter(
+    storeId: string,
+    items: Array<{ productId: string; quantity: number }>,
+    opts: { paymentMethod?: "CASH" | "UPI"; customerName?: string; notes?: string } = {},
+  ): Promise<OrderRow> {
+    const { data, error } = await getSupabase().rpc("orders_create_counter", {
+      p_store_id: storeId,
+      p_items: items.map((i) => ({ product_id: i.productId, quantity: i.quantity })),
+      p_payment_method: opts.paymentMethod ?? "CASH",
+      p_customer_name: opts.customerName ?? null,
+      p_notes: opts.notes ?? null,
+    });
+    if (error) throw fromPostgrest(error);
+    return data as unknown as OrderRow;
+  },
+
   async advanceStatus(orderId: string, next: OrderStatus): Promise<OrderRow> {
     const { data, error } = await getSupabase().rpc("orders_advance_status", {
       p_order_id: orderId,

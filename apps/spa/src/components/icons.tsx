@@ -118,3 +118,11 @@ export const IconZap = (p: SVGProps<SVGSVGElement>) => (
     <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" />
   </svg>
 );
+
+/** Brand mark — lucide `chef-hat` (ISC licensed), matches the legacy logo. */
+export const IconChefHat = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base({ strokeWidth: 2, ...p })}>
+    <path d="M17 21a1 1 0 0 0 1-1v-5.35c0-.457.316-.844.727-1.041a4 4 0 0 0-2.134-7.589 5 5 0 0 0-9.186 0 4 4 0 0 0-2.134 7.588c.411.198.727.585.727 1.041V20a1 1 0 0 0 1 1Z" />
+    <path d="M6 17h12" />
+  </svg>
+);

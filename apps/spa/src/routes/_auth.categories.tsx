@@ -7,6 +7,7 @@ import type { CategoryRow } from "@virundhu/shared";
 import { useActiveStoreId } from "@/lib/useActiveStoreId";
 import { PageHeader } from "@/components/PageHeader";
 import { NoStoreState } from "@/components/NoStoreState";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 export const Route = createFileRoute("/_auth/categories")({
   component: CategoriesPage,
@@ -97,6 +98,7 @@ function CategoriesInner({ storeId }: { storeId: string }) {
   const [name, setName] = useState("");
   const [tamil, setTamil] = useState("");
   const [editing, setEditing] = useState<CategoryRow | null>(null);
+  const [deleting, setDeleting] = useState<CategoryRow | null>(null);
 
   function swap(idx: number, delta: -1 | 1) {
     const ids = (list.data ?? []).map((x) => x.id);
@@ -188,11 +190,7 @@ function CategoriesInner({ storeId }: { storeId: string }) {
               <button
                 className="btn btn-outline !px-2.5 text-xs"
                 aria-label={`Delete ${c.name}`}
-                onClick={() => {
-                  if (window.confirm(`Delete category “${c.name}”? Products inside must be moved first.`)) {
-                    remove.mutate(c);
-                  }
-                }}
+                onClick={() => setDeleting(c)}
               >
                 🗑
               </button>
@@ -205,6 +203,19 @@ function CategoriesInner({ storeId }: { storeId: string }) {
           ) : null}
         </div>
       )}
+
+      {deleting ? (
+        <ConfirmDialog
+          title={`Delete “${deleting.name}”?`}
+          body="Products inside keep their data but lose this section — reassign them to another category afterwards."
+          confirmLabel="Delete category"
+          pending={remove.isPending}
+          onConfirm={() =>
+            remove.mutate(deleting, { onSettled: () => setDeleting(null) })
+          }
+          onClose={() => setDeleting(null)}
+        />
+      ) : null}
 
       {editing ? (
         <EditDialog

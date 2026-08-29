@@ -1,21 +1,21 @@
 /**
- * db-types.ts — Supabase-generated PostgREST typings for `public` schema.
+ * db-types.ts â€” Supabase-generated PostgREST typings for `public` schema.
  *
- * ┌─ DO NOT EDIT BY HAND ─────────────────────────────────────────────────┐
- * │ This file is regenerated on every `main` merge that touches           │
- * │ supabase/migrations by:                                               │
- * │                                                                       │
- * │   npx supabase gen types typescript \                                 │
- * │     --project-id <REF> --schema public \                              │
- * │     > packages/shared/src/db-types.ts                                 │
- * │                                                                       │
- * │ See `.github/workflows/db-deploy.yml` job `types`.                    │
- * └───────────────────────────────────────────────────────────────────────┘
+ * â”Œâ”€ DO NOT EDIT BY HAND â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+ * â”‚ This file is regenerated on every `main` merge that touches           â”‚
+ * â”‚ supabase/migrations by:                                               â”‚
+ * â”‚                                                                       â”‚
+ * â”‚   npx supabase gen types typescript \                                 â”‚
+ * â”‚     --project-id <REF> --schema public \                              â”‚
+ * â”‚     > packages/shared/src/db-types.ts                                 â”‚
+ * â”‚                                                                       â”‚
+ * â”‚ See `.github/workflows/db-deploy.yml` job `types`.                    â”‚
+ * â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
  *
  * Until Stage 1.1.4 provisions a staging project, this file ships a
  * hand-written subset that mirrors the migrations under
  * `supabase/migrations/`. It IS the source of truth the typed data layer
- * imports from — swap it out with the generated file on first CI run
+ * imports from â€” swap it out with the generated file on first CI run
  * against staging.
  *
  * Shape rule: define Row/Insert/Update as **standalone** interfaces so the
@@ -34,7 +34,7 @@ import type {
   StoreRole,
   StoreStatus,
   Unit,
-} from "./enums";
+} from "./enums.ts";
 
 export type Json =
   | string
@@ -44,7 +44,7 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
-// ─── stores ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ stores â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export interface StoreRow {
   id: string;
   slug: string;
@@ -72,7 +72,7 @@ export interface StoreRow {
 export type StoreInsert = Partial<StoreRow> & { slug: string; name: string };
 export type StoreUpdate = Partial<StoreRow>;
 
-// ─── store_members ────────────────────────────────────────────────────────────
+// â”€â”€â”€ store_members â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export interface StoreMemberRow {
   store_id: string;
   user_id: string;
@@ -82,7 +82,7 @@ export interface StoreMemberRow {
 export type StoreMemberInsert = Omit<StoreMemberRow, "created_at"> & { created_at?: string };
 export type StoreMemberUpdate = Partial<StoreMemberRow>;
 
-// ─── categories ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ categories â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export interface CategoryRow {
   id: string;
   store_id: string;
@@ -101,7 +101,7 @@ export type CategoryInsert = Omit<CategoryRow, "id" | "created_at" | "updated_at
 };
 export type CategoryUpdate = Partial<CategoryRow>;
 
-// ─── products ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ products â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export interface ProductRow {
   id: string;
   store_id: string;
@@ -127,7 +127,7 @@ export type ProductInsert = Omit<ProductRow, "id" | "created_at" | "updated_at">
 };
 export type ProductUpdate = Partial<ProductRow>;
 
-// ─── orders ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ orders â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export interface OrderRow {
   id: string;
   store_id: string;
@@ -156,7 +156,7 @@ export type OrderInsert = Partial<OrderRow> & {
 };
 export type OrderUpdate = Partial<OrderRow>;
 
-// ─── order_items ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ order_items â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export interface OrderItemRow {
   id: string;
   order_id: string;
@@ -176,7 +176,7 @@ export type OrderItemInsert = Omit<OrderItemRow, "id" | "line_total" | "created_
 };
 export type OrderItemUpdate = Partial<OrderItemRow>;
 
-// ─── printers ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ printers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export interface PrinterRow {
   id: string;
   store_id: string;
@@ -196,7 +196,7 @@ export type PrinterInsert = Omit<PrinterRow, "id" | "created_at" | "updated_at">
 };
 export type PrinterUpdate = Partial<PrinterRow>;
 
-// ─── audit_log ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ audit_log â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export interface AuditLogRow {
   id: string;
   store_id: string | null;
@@ -212,7 +212,7 @@ export type AuditLogInsert = Omit<AuditLogRow, "id" | "created_at"> & {
 };
 export type AuditLogUpdate = Partial<AuditLogRow>;
 
-// ─── order_sequences ──────────────────────────────────────────────────────────
+// â”€â”€â”€ order_sequences â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export interface OrderSequenceRow {
   store_id: string;
   day: string;
@@ -221,7 +221,7 @@ export interface OrderSequenceRow {
 export type OrderSequenceInsert = OrderSequenceRow;
 export type OrderSequenceUpdate = Partial<OrderSequenceRow>;
 
-// ─── idempotency_keys ───────────────────────────────────────────────────────────
+// â”€â”€â”€ idempotency_keys â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export interface IdempotencyKeyRow {
   key: string;
   scope: string;
@@ -234,7 +234,7 @@ export type IdempotencyKeyInsert = Omit<IdempotencyKeyRow, "created_at" | "expir
 };
 export type IdempotencyKeyUpdate = Partial<IdempotencyKeyRow>;
 
-// ─── Database map ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Database map â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export interface Database {
   public: {
     Tables: {
@@ -314,6 +314,16 @@ export interface Database {
           p_customer_phone?: string | null;
           p_notes?: string | null;
           p_payment_method?: PaymentMethod;
+        };
+        Returns: OrderRow;
+      };
+      orders_create_counter: {
+        Args: {
+          p_store_id: string;
+          p_items: Json;
+          p_payment_method?: PaymentMethod;
+          p_customer_name?: string | null;
+          p_notes?: string | null;
         };
         Returns: OrderRow;
       };

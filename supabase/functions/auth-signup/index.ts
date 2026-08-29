@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
   }
   if (slugCheck.data !== true) {
     return new Response(
-      JSON.stringify({ code: "SLUG_TAKEN", message: "That store URL is already taken." }),
+      JSON.stringify({ code: "SLUG_TAKEN", message: "That store slug is already taken." }),
       { status: 409, headers },
     );
   }

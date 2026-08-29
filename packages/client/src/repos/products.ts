@@ -78,8 +78,17 @@ export const productsRepo = {
   },
 
   async remove(id: string): Promise<void> {
-    const { error } = await getSupabase().from("products").delete().eq("id", id);
+    // `.select("id")` returns the deleted rows so an RLS-filtered 0-row
+    // delete surfaces as an error instead of a silent success.
+    const { data, error } = await getSupabase()
+      .from("products")
+      .delete()
+      .eq("id", id)
+      .select("id");
     if (error) throw fromPostgrest(error);
+    if (!data || data.length === 0) {
+      throw new Error("Product was not deleted — it may not exist or you may not have access.");
+    }
   },
 
   async reorder(storeId: string, orderedIds: string[]): Promise<void> {

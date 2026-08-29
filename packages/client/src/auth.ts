@@ -43,13 +43,18 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
   });
 
   if (error) {
-    // Edge Functions return non-2xx as `FunctionsHttpError` — surface the JSON
-    // body when the function returned a structured error envelope.
-    const ctx = (error as unknown as { context?: { body?: string } }).context;
-    const bodyText = ctx?.body ?? "";
+    // Edge Functions return non-2xx as `FunctionsHttpError` whose `context`
+    // is the raw fetch Response — the JSON error envelope must be read from
+    // it asynchronously (reading a `.body` string property yields nothing,
+    // which is why users used to see the generic "non-2xx status code").
+    const ctx = (error as unknown as { context?: unknown }).context;
     let parsedBody: { code?: string; message?: string } = {};
     try {
-      parsedBody = JSON.parse(bodyText) as typeof parsedBody;
+      if (ctx instanceof Response) {
+        parsedBody = (await ctx.clone().json()) as typeof parsedBody;
+      } else if (typeof (ctx as { body?: unknown })?.body === "string") {
+        parsedBody = JSON.parse((ctx as { body: string }).body) as typeof parsedBody;
+      }
     } catch {
       /* not JSON — fall through */
     }

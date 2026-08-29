@@ -8,6 +8,7 @@ import { UNITS } from "@virundhu/shared";
 import { useActiveStoreId } from "@/lib/useActiveStoreId";
 import { PageHeader } from "@/components/PageHeader";
 import { NoStoreState } from "@/components/NoStoreState";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
@@ -93,6 +94,7 @@ function ProductsInner({ storeId }: { storeId: string }) {
   });
 
   const [form, setForm] = useState<FormState | null>(null);
+  const [deleting, setDeleting] = useState<ProductRow | null>(null);
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-6xl">
@@ -169,15 +171,24 @@ function ProductsInner({ storeId }: { storeId: string }) {
                   unit: p.unit,
                 })
               }
-              onDelete={() => {
-                if (window.confirm(`Delete “${p.name}”? This cannot be undone.`)) {
-                  removeProduct.mutate(p);
-                }
-              }}
+              onDelete={() => setDeleting(p)}
             />
           ))}
         </div>
       )}
+
+      {deleting ? (
+        <ConfirmDialog
+          title={`Delete “${deleting.name}”?`}
+          body="This cannot be undone. Items with past orders can be marked Hidden instead."
+          confirmLabel="Delete product"
+          pending={removeProduct.isPending}
+          onConfirm={() =>
+            removeProduct.mutate(deleting, { onSettled: () => setDeleting(null) })
+          }
+          onClose={() => setDeleting(null)}
+        />
+      ) : null}
 
       {form ? (
         <ProductFormDialog

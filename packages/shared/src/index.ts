@@ -1,18 +1,18 @@
 /**
- * @virundhu/shared — API contract shared by the web client, the legacy
+ * @virundhu/shared â€” API contract shared by the web client, the legacy
  * NestJS API, and the new Supabase backend (Postgres RPCs + Deno Edge Functions).
  *
  * Everything exported here is safe on both server and client (no Node-only
  * deps, no React deps). Keep it small and dependency-free apart from Zod.
  */
 
-export * from "./enums";
-export * from "./types";
-export * from "./schemas";
-export * from "./api-errors";
-export * from "./transitions";
-export * from "./totals";
-export * from "./notifications";
+export * from "./enums.ts";
+export * from "./types.ts";
+export * from "./schemas.ts";
+export * from "./api-errors.ts";
+export * from "./transitions.ts";
+export * from "./totals.ts";
+export * from "./notifications.ts";
 export type {
   Database,
   Json,
@@ -44,4 +44,4 @@ export type {
   IdempotencyKeyRow,
   IdempotencyKeyInsert,
   IdempotencyKeyUpdate,
-} from "./db-types";
+} from "./db-types.ts";

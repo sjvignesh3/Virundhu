@@ -7,7 +7,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import QRCode from "qrcode";
 import { storeKeys, storesRepo } from "@virundhu/client";
 import { useActiveStoreId } from "@/lib/useActiveStoreId";
 import { PageHeader } from "@/components/PageHeader";
@@ -37,12 +36,17 @@ function QrInner({ storeId }: { storeId: string }) {
 
   useEffect(() => {
     if (!menuUrl) return;
-    QRCode.toDataURL(menuUrl, {
-      width: 640,
-      margin: 2,
-      errorCorrectionLevel: "M",
-      color: { dark: "#1A1512", light: "#FFFFFF" },
-    })
+    // Dynamic import keeps the ~10KB qrcode lib out of the initial bundle —
+    // it loads only when the owner opens this page.
+    import("qrcode")
+      .then((QRCode) =>
+        QRCode.toDataURL(menuUrl, {
+          width: 640,
+          margin: 2,
+          errorCorrectionLevel: "M",
+          color: { dark: "#1A1512", light: "#FFFFFF" },
+        }),
+      )
       .then(setDataUrl)
       .catch(() => toast.error("Could not generate the QR code"));
   }, [menuUrl]);
