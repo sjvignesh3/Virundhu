@@ -1,0 +1,8 @@
+{
+  "imports": {
+    "@virundhu/shared": "../../../packages/shared/src/index.ts",
+    "@virundhu/shared/": "../../../packages/shared/src/",
+    "std/": "https://deno.land/std@0.224.0/",
+    "zod": "https://deno.land/x/zod@v3.23.8/mod.ts"
+  }
+}
