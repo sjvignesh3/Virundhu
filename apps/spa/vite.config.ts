@@ -39,6 +39,9 @@ export default defineConfig({
           "vendor-router": ["@tanstack/react-router"],
           "vendor-query": ["@tanstack/react-query"],
           "vendor-supabase": ["@supabase/supabase-js"],
+          // Loaded via dynamic import (QR page only) — the `async-` prefix
+          // excludes it from CI's INITIAL-JS bundle budget.
+          "async-qrcode": ["qrcode"],
         },
       },
     },

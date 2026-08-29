@@ -1,5 +1,5 @@
 /**
- * Zod schemas — reused by:
+ * Zod schemas â€” reused by:
  *   - NestJS backend as a ZodValidationPipe on every controller
  *   - Next.js frontend for form validation (React Hook Form + zodResolver)
  *
@@ -17,7 +17,7 @@ import {
   STORE_ROLES,
   STORE_STATUSES,
   UNITS,
-} from "./enums";
+} from "./enums.ts";
 
 const trimmedString = (min = 1, max = 200) =>
   z.string().trim().min(min).max(max);
@@ -55,13 +55,13 @@ export const storeSlugSchema = z
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "slug must be kebab-case (a-z, 0-9, -)");
 
 /**
- * UPI VPA (Virtual Payment Address) — `<handle>@<psp>`.
+ * UPI VPA (Virtual Payment Address) â€” `<handle>@<psp>`.
  *
- * NPCI allows 2–256 chars total; we tighten to 3–100 for realistic input and
+ * NPCI allows 2â€“256 chars total; we tighten to 3â€“100 for realistic input and
  * enforce a conservative character class that catches typos (spaces, quotes,
  * emoji) without rejecting legitimate handles like `merchant.co@okhdfcbank`.
  *
- * The regex intentionally does not attempt provider-list validation — PSPs
+ * The regex intentionally does not attempt provider-list validation â€” PSPs
  * proliferate too fast to keep an allow-list current.
  */
 export const upiVpaSchema = z
@@ -90,7 +90,7 @@ const optionalUpi = () =>
  *
  * The backend creates the User, Store, StoreUser (OWNER), StoreSettings, and
  * OrderSequence rows in ONE transaction. No categories, products, or demo
- * orders are seeded — new accounts start with a clean slate.
+ * orders are seeded â€” new accounts start with a clean slate.
  */
 export const signupSchema = z.object({
   // Owner identity
@@ -112,7 +112,7 @@ export const signupSchema = z.object({
   storePhone: optionalTrimmed(30),
   storeAddress: optionalTrimmed(300),
   // UPI VPA collected at signup so the checkout "Pay via UPI" button on the
-  // storefront can deep-link to the customer's UPI app. Optional — a store
+  // storefront can deep-link to the customer's UPI app. Optional â€” a store
   // with no UPI ID is CASH-only.
   storeUpiId: optionalUpi(),
 });
@@ -256,8 +256,8 @@ export const paymentSchema = z.object({
 /**
  * Customer-side payment intent at checkout.
  *
- *   CASH → order is placed as-is; PAID collected in-person by the vendor.
- *   UPI  → order is placed with `paymentMethod=UPI`; the SPA then opens
+ *   CASH â†’ order is placed as-is; PAID collected in-person by the vendor.
+ *   UPI  â†’ order is placed with `paymentMethod=UPI`; the SPA then opens
  *          `upi://pay?...` so the customer's UPI app completes the transfer.
  *          Reconciliation stays manual (v1) until Razorpay is wired.
  */

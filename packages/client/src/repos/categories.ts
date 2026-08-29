@@ -61,8 +61,17 @@ export const categoriesRepo = {
   },
 
   async remove(id: string): Promise<void> {
-    const { error } = await getSupabase().from("categories").delete().eq("id", id);
+    // `.select("id")` makes PostgREST return the deleted rows — an RLS-filtered
+    // delete otherwise "succeeds" with 0 rows and the UI lies about it.
+    const { data, error } = await getSupabase()
+      .from("categories")
+      .delete()
+      .eq("id", id)
+      .select("id");
     if (error) throw fromPostgrest(error);
+    if (!data || data.length === 0) {
+      throw new Error("Category was not deleted — it may not exist or you may not have access.");
+    }
   },
 
   async reorder(storeId: string, orderedIds: string[]): Promise<void> {

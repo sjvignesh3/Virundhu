@@ -7,6 +7,7 @@ import type { PrinterRow } from "@virundhu/shared";
 import { useActiveStoreId } from "@/lib/useActiveStoreId";
 import { PageHeader } from "@/components/PageHeader";
 import { NoStoreState } from "@/components/NoStoreState";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { cn } from "@/lib/cn";
 
 export const Route = createFileRoute("/_auth/printers")({
@@ -59,6 +60,7 @@ function PrintersInner({ storeId }: { storeId: string }) {
   });
 
   const [name, setName] = useState("");
+  const [deleting, setDeleting] = useState<PrinterRow | null>(null);
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-3xl">
@@ -128,9 +130,7 @@ function PrintersInner({ storeId }: { storeId: string }) {
                 <button
                   className="btn btn-outline !px-3"
                   aria-label={`Delete ${p.name}`}
-                  onClick={() => {
-                    if (window.confirm(`Remove printer “${p.name}”?`)) remove.mutate(p);
-                  }}
+                  onClick={() => setDeleting(p)}
                 >
                   🗑
                 </button>
@@ -144,6 +144,17 @@ function PrintersInner({ storeId }: { storeId: string }) {
           </>
         )}
       </div>
+
+      {deleting ? (
+        <ConfirmDialog
+          title={`Remove printer “${deleting.name}”?`}
+          body="Print jobs routed to it will stop. You can add it again later."
+          confirmLabel="Remove printer"
+          pending={remove.isPending}
+          onConfirm={() => remove.mutate(deleting, { onSettled: () => setDeleting(null) })}
+          onClose={() => setDeleting(null)}
+        />
+      ) : null}
     </div>
   );
 }

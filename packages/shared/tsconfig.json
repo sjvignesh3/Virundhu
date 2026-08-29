@@ -11,7 +11,13 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "moduleResolution": "node",
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    // Deno (Supabase Edge Functions) requires explicit .ts extensions on
+    // relative imports; TS 5.7+ rewrites them to .js in the CommonJS emit so
+    // Node consumers (apps/api) keep working. Do NOT remove the extensions —
+    // extensionless imports break every Edge Function at boot.
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "src/**/*.test.ts"]

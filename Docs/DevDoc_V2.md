@@ -614,9 +614,12 @@ that has the toolchain.
 
 ```bash
 git clone <repo> && cd CartSas
-npm ci                      # installs all workspaces (shared, client, spa, api, web)
-npm run build --workspace=@virundhu/shared   # emit dist/ so client typechecks resolve
+npm ci                      # installs all workspaces (postinstall builds @virundhu/shared)
 ```
+
+> **Windows only:** vitest 4 (used by `packages/shared` + `packages/client`)
+> needs its native binding, which npm's optional-deps bug can skip:
+> `npm i --no-save @rolldown/binding-win32-x64-msvc`. Linux/macOS/CI unaffected.
 
 ### 2. Boot the local Supabase stack
 
@@ -624,8 +627,10 @@ npm run build --workspace=@virundhu/shared   # emit dist/ so client typechecks r
 supabase start             # first run pulls images (~2 min); needs Docker running
 ```
 
-This starts Postgres 16, PostgREST, GoTrue (auth), Realtime, Studio, and the
-Edge runtime, and prints local URLs + keys. Key defaults from `config.toml`:
+This starts Postgres 17, PostgREST, GoTrue (auth), Realtime, Studio, and the
+Edge runtime — **Edge Functions (auth-signup etc.) are served automatically**,
+no separate `functions serve` needed for normal dev. Key defaults from
+`config.toml`:
 
 | Service | URL / Port |
 |---|---|
@@ -644,10 +649,10 @@ you'll need them below.
 supabase db reset          # replays EVERY migration in order + runs seed.sql
 ```
 
-This creates all 8 tables, RLS, the 12 RPCs (incl. Stage 5's `mark_payment_paid`
-and `notify_order_transition`), the `public_store_menu` view, the keepalive +
-idempotency-sweep cron jobs, and seeds the **Anna Street Food** demo tenant
-(slug `anna-street-food`).
+This replays all 27 migrations — tables, RLS, every RPC (incl. Stage 8's
+`FC-` order numbers + realtime publication and Stage 9's
+`orders_create_counter`), the `public_store_menu` view, the cron jobs — and
+seeds the **Anna Street Food** demo tenant (slug `anna-street-food`).
 
 > Re-run `supabase db reset` any time you add a migration or want a clean slate.
 > **Never edit a migration that has been pushed** — always add a new one
@@ -676,18 +681,28 @@ VITE_PUBLIC_MENU_BASE_URL=
 npm run dev --workspace=@virundhu/spa      # → http://localhost:5173
 ```
 
-- **Owner console:** `http://localhost:5173/login`. Local Supabase has
-  `enable_signup=false`, so create an owner one of two ways:
-  1. **Signup Edge Function (recommended, end-to-end):** serve functions
-     (step 6) then use the app's `/signup` page — it calls `auth-signup`, which
-     provisions the tenant transactionally.
-  2. **Manual (quick):** in Studio → Authentication, create a user, then in the
-     SQL editor add a `store_members` row linking that `user_id` to the seeded
-     store and set `raw_app_meta_data` to `{"store_ids":["<store-uuid>"],"role":"OWNER"}`.
-- **Public storefront:** `http://localhost:5173/menu/anna-street-food` (no auth) —
-  browse, add to cart, checkout, and land on the success page.
+- **Create your store:** open `http://localhost:5173/signup` and fill the form —
+  `supabase start` already serves the `auth-signup` Edge Function, which
+  provisions the tenant transactionally and signs you straight into the
+  dashboard. (Public API signup stays blocked by `auth.enable_signup=false`;
+  email+password LOGIN is enabled via `[auth.email] enable_signup=true` —
+  do not flip that flag off, it disables all email sign-ins.)
+- **Owner console:** `http://localhost:5173/login` afterwards. To attach an
+  extra user to the seeded Anna Street Food store instead: Studio →
+  Authentication → create user, set `raw_app_meta_data` to
+  `{"store_ids":["11111111-1111-1111-1111-111111111111"],"role":"OWNER"}`,
+  and insert a matching `store_members` row.
+- **Public storefront:** `http://localhost:5173/order/anna-street-food`
+  (no auth) — browse, add to cart, checkout, and land on the receipt page
+  (`FC-1001`-style numbers). `/menu/:slug` redirects here.
+- **Counter sales:** owner console → **New Order** — tap products, Save;
+  the order lands in History + Dashboard as COMPLETED/PAID.
 
-### 6. Serve Edge Functions locally
+### 6. Edge Functions — extra env / iteration
+
+`supabase start` already serves every function with hot reload. Use a
+dedicated `functions serve` only when you need custom secrets (Razorpay,
+notification toggles):
 
 ```bash
 # From repo root. --env-file feeds provider secrets; --no-verify-jwt matches config.toml.
@@ -695,6 +710,11 @@ supabase functions serve \
   --env-file supabase/functions/.env.local \
   --import-map supabase/import_map.json
 ```
+
+> Import rule: every relative import inside `packages/shared/src` **must keep
+> its `.ts` extension** (`from "./enums.ts"`). The Deno edge runtime fails to
+> boot on extensionless imports; tsc rewrites them to `.js` on emit via
+> `rewriteRelativeImportExtensions`.
 
 Create `supabase/functions/.env.local` (git-ignored) for local testing:
 
@@ -741,7 +761,7 @@ curl -s -X POST http://localhost:54321/functions/v1/razorpay-webhook \
 | Typed client | `npm run test --workspace=@virundhu/client` | Node |
 | SPA unit | `npm run test --workspace=@virundhu/spa` | Node |
 | SPA lint / typecheck | `npm run lint --workspace=@virundhu/spa` · `npm run build --workspace=@virundhu/spa` | Node |
-| **DB (pgTAP incl. Stage 5)** | `supabase test db` | Docker + CLI |
+| **DB (pgTAP files 00–09)** | `supabase test db` | Docker + CLI |
 | **Edge helpers (Deno)** | `deno test --import-map=supabase/import_map.json supabase/functions/_shared/razorpay.test.ts` | Deno |
 | **Edge typecheck (Deno)** | `deno check --import-map=supabase/import_map.json supabase/functions/**/*.ts` | Deno |
 | **e2e (real Supabase)** | see below | Node + Playwright |
@@ -772,14 +792,14 @@ npm run test:e2e
 
 ### 9. Deploy to a linked project (operator)
 
+See the full **Production Deployment Guide (Vercel + Supabase)** section at the
+end of this document — it walks the entire first-time hosting flow. Short
+version for repeat deploys:
+
 ```bash
 supabase link --project-ref <ref>           # needs SUPABASE_ACCESS_TOKEN
 supabase db push                            # apply migrations
 supabase functions deploy                   # deploy all Edge Functions
-# Set production GUCs + secrets:
-supabase secrets set EDGE_SHARED_SECRET=... RAZORPAY_WEBHOOK_SECRET=... PAYMENT_PROVIDER=simulated
-# In SQL: alter database postgres set app.edge_url='https://<ref>.supabase.co';
-#         alter database postgres set app.edge_secret='<EDGE_SHARED_SECRET>';
 ```
 
 CI (`.github/workflows/db-deploy.yml`) does all of the above automatically on
@@ -797,6 +817,10 @@ merge to `main` (jobs: `shared → client → spa`, `sql`, `edge` → `deploy` �
 | Webhook returns `INVALID_SIGNATURE` | HMAC secret mismatch | Ensure the `openssl` HMAC key matches `RAZORPAY_WEBHOOK_SECRET` |
 | Webhook returns `mode: simulated` | `PAYMENT_PROVIDER=simulated` | Set `PAYMENT_PROVIDER=razorpay` to apply captures |
 | Owner routes redirect to `/login` | no `store_ids` in JWT | Ensure the user's `app_metadata.store_ids` is set (via `auth-signup` or manually) |
+| Signup: "Edge Function returned a non-2xx status code" | edge runtime worker failed to boot | `docker logs supabase_edge_runtime_<project>` — almost always an extensionless relative import in `packages/shared/src` (Deno needs `.ts`) |
+| Login: "Email logins are disabled" | `[auth.email] enable_signup=false` in config.toml | Keep it `true` — it is GoTrue's email-provider master switch, not a signup flag |
+| `vitest` fails to start on Windows | npm optional-deps bug drops the rolldown binding | `npm i --no-save @rolldown/binding-win32-x64-msvc` |
+| Delete buttons "do nothing" | never applicable anymore | destructive actions use in-app confirm dialogs (native `window.confirm` was suppressed in some browsers) |
 
 ---
 
@@ -1069,3 +1093,216 @@ and storefront rebuilt to the legacy dark/orange design.
   `createLazyFileRoute` before adding the next feature.
 - Old `A-YYYYMMDD-NNNN` order numbers in existing dev databases coexist fine
   with the FC counter (unique per store either way); prod has no legacy rows.
+
+---
+
+## Stage 9 · Counter Sales, Mobile Shell & Live-QA Fixes
+
+**Trigger:** Owner testing on real mobile devices (2026-08-29). Requested:
+mobile UX parity with the previous product (hamburger drawer + bottom tabs),
+a walk-in counter-sale flow, faster dashboard, 3-column live board, image-free
+menu — plus signup/category-delete failures found while testing.
+
+**Status:** ✅ Complete. pgTAP 10/10; all Node suites green; every flow
+re-verified in the browser at mobile viewport (375×812).
+
+### 1. Runtime bugs found & fixed
+
+| # | Defect | Root cause | Fix |
+|---|--------|-----------|-----|
+| 1 | **Signup failed** ("Edge Function returned a non-2xx status code") | Two stacked causes: (a) the Deno edge runtime could not even boot `auth-signup` — `packages/shared/src` used extensionless relative imports, which Deno rejects, so every EF importing `@virundhu/shared` had never actually run; (b) once booted, `provision_tenant/5` was executable by NOBODY — Stage 7's recreation revoked PUBLIC without re-granting `service_role`. | (a) All shared relative imports now carry `.ts` extensions; `tsconfig` uses TS 5.7+ `rewriteRelativeImportExtensions` so the CommonJS emit still works for Node consumers. (b) Migration `20260901002700` grants EXECUTE to `service_role`; pgTAP 09 locks it. **Verified**: UI signup → "Welcome back, DosaKadai" dashboard. Sign-in itself was already fixed in Stage 8 (config) — it only *looked* broken because signup never created the account. |
+| 2 | **Category deletion "did nothing"** | Backend delete was fine at every layer (RLS, grants, PostgREST 204). The UI used native `window.confirm`, which some browsers/webviews suppress — the dialog never appeared and the mutation never ran. | New in-app `ConfirmDialog` component replaces every `window.confirm` (categories, products, printers). Repos' `remove()` now `.select("id")`s the deleted rows and errors on a silent 0-row delete. **Verified**: create → delete → "Category deleted" toast, list empties. |
+| 3 | **Dashboard updated too slowly** | Summary query relied on the 30 s default staleTime and nothing invalidated it on order activity. | `useOrdersRealtime` now invalidates dashboard keys too and is mounted on the Dashboard as well (route-scoped — still max ONE channel per owner tab); the summary query adds `staleTime: 0` + 30 s `refetchInterval` as socket fallback; New Order/advance/cancel mutations invalidate it. **Verified**: counter sale reflected in Revenue instantly. |
+
+### 2. Features shipped
+
+- **New Order (counter sales)** — `_auth.orders.new.tsx` + RPC
+  `orders_create_counter` (migration `20260901002700`): owner-only,
+  server-authoritative pricing, order written **already COMPLETED + PAID** in
+  one atomic call → appears in History + Dashboard revenue, never on the live
+  board. UI is tap-optimized: category chips, tappable product tiles (+1 per
+  tap, qty badge, − button), sticky bar with running total, Cash/UPI toggle,
+  optional customer name, Clear, Save. Nav item in sidebar, bottom tab bar,
+  and the dashboard's primary quick action. pgTAP 09: COMPLETED+PAID, totals
+  (2×30 + 10% = 66.00), invisible to live queue, 42501 for non-members.
+- **Mobile shell rebuilt** (parity with the legacy app's mobile UX):
+  hamburger → slide-in drawer (logo, full nav, "Cart is open" footer, closes
+  on route change / backdrop tap) + **fixed bottom tab bar** (Dashboard, New
+  Order, Live Orders, Products, Reports) with safe-area inset; sticky top bar
+  with page title + sign-out. Desktop keeps the sidebar. Content gets `pb-24`
+  on mobile so the tab bar never overlaps.
+- **Live Orders simplified to 3 columns** — New → Preparing → Ready. One tap
+  on a NEW card ("Start preparing") sends it straight to the kitchen:
+  `NEW → PREPARING` added to the shared state machine and its SQL mirror
+  (`orders_can_transition`, migration 002700). ACCEPTED stays a valid enum for
+  legacy rows and renders inside the Preparing column.
+- **Menu images removed** — the storefront hero and product thumbnails are
+  gone (empty placeholder squares looked broken and cost LCP); product rows
+  are text-first with a bigger Add target.
+- Root `package.json` gains v2 scripts (`build:client`, `build:spa`,
+  `dev:spa`, `test:v2`) — `vercel.json`'s build command referenced
+  `build:client`, which didn't exist and would have failed the first deploy.
+
+### 3. Verification matrix (2026-08-29, all executed)
+
+| Check | Result |
+|---|---|
+| `supabase db reset` (27 migrations + seed) | ✅ |
+| `supabase test db` (pgTAP 00–09) | ✅ **10/10 files** |
+| shared 9 · client 20 · SPA 18 unit tests | ✅ |
+| SPA build + typecheck + eslint | ✅ |
+| Initial bundle (gzip) | ✅ ~169 KB / 180 KB (qrcode now lazy-loads as an async chunk) |
+| Browser (mobile 375×812): drawer, bottom tabs, New Order tap-flow (₹385 → saved `FC-1001` ₹404 w/ 5% tax), dashboard instant refresh, category create+delete, image-free menu, 3-column live board | ✅ |
+| Browser: UI signup end-to-end (DosaKadai tenant + session) | ✅ |
+
+---
+
+## Stage 9.1 · ACCEPTED Retired, Lucide Brand Mark & Landing Redesign
+
+**Trigger:** Owner feedback after live mobile testing (2026-08-29, round 2).
+
+- **ACCEPTED status fully retired** (migration `20260901002800`): a stale
+  ACCEPTED row (written by a pre-Stage-9 client) rendered confusingly in the
+  Preparing column until refresh. The data migration moves all ACCEPTED rows
+  to PREPARING; the transition matrix (SQL + shared `transitions.ts`) no
+  longer allows ACCEPTED as a *target* — flow is strictly
+  NEW → PREPARING → READY → COMPLETED. ACCEPTED survives only as an enum
+  value + drain-to-PREPARING escape hatch for stale writers. pgTAP 02/09 and
+  the shared notification tests updated; suite still 10/10.
+- **Signup copy**: duplicate-slug error now says "That store slug is already
+  taken." (was "store URL").
+- **Brand mark**: the வி tile is replaced with the lucide `chef-hat` icon
+  (inlined in `icons.tsx`) across the owner shell, drawer, and landing —
+  matching the legacy logo.
+- **Landing page redesigned** (kept the dark/orange system): new hero — "Run
+  your stall **like a pro.**" + the stall/push-cart/cloud-kitchen subtitle;
+  **real product screenshots** captured from the running app via Playwright
+  (`public/landing/{dashboard,live-orders,new-order,storefront}.png`, shown in
+  browser/phone frames); features grid ("Built for the way you cook");
+  product-tour rows (kitchen board / counter billing / QR ordering);
+  "Up and running in 4 steps" ghost-numbered cards; testimonial panel with
+  guarantee checks (7-day free trial, slow-internet friendly, Tamil+English);
+  **new Pricing section** — Free Trial (7 days, ₹0) · Monthly ₹499 ·
+  Yearly ₹349/mo billed ₹4,188 (SAVE 30%, featured) with an "every plan
+  includes" feature list and a note that tiering may come later; final CTA
+  cites **50+ vendors**. To refresh the screenshots after UI changes: seed a
+  few demo orders, then run a Playwright script against `vite dev` (see
+  Stage 9.1 commit) writing into `apps/spa/public/landing/`.
+
+---
+
+## Production Deployment Guide (Vercel + Supabase)
+
+> First-time hosting walkthrough, per Plan §1 (Vercel Edge CDN → Supabase
+> `ap-south-1`). Everything the code needs is in migrations/config — this is
+> the operator sequence. Budget: free tier on both platforms.
+
+### A. Supabase project
+
+1. **Create the project** at [supabase.com/dashboard](https://supabase.com/dashboard)
+   → New project → region **Mumbai (ap-south-1)** → strong DB password (goes
+   in a password manager; the app never uses it). Note the **Project Ref**
+   (in Project Settings → General) and from **Settings → API**: the
+   **Project URL** and **anon (public) key**.
+
+2. **Link + push schema** (from the repo root; get an access token at
+   supabase.com/dashboard/account/tokens):
+
+   ```bash
+   npx supabase login                         # or set SUPABASE_ACCESS_TOKEN
+   npx supabase link --project-ref <REF>
+   npx supabase db push                       # applies all 27 migrations
+   ```
+
+   `db push` creates every table, RLS policy, RPC, view, index, the realtime
+   publication entry, and the pg_cron jobs. **Do NOT run `seed.sql` on prod**
+   — real stores sign up through the app.
+
+3. **Deploy Edge Functions:**
+
+   ```bash
+   npx supabase functions deploy
+   ```
+
+   Then in Dashboard → Edge Functions, verify `auth-signup` is listed.
+   (`razorpay-webhook` / `notify-order-transition` also deploy but return 501
+   until their `*_ENABLED=1` secrets are set — deliberate kill-switches.)
+
+4. **Auth settings** (Dashboard → Authentication):
+   - **Sign In / Providers → Email**: keep **enabled** (this is email+password
+     login). Turn **OFF** "Allow new users to sign up" — signups must go
+     through the `auth-signup` Edge Function (it uses the admin API and is
+     unaffected by this toggle).
+   - **URL Configuration**: Site URL = your Vercel domain
+     (e.g. `https://virundhu.vercel.app`), and add it to Redirect URLs.
+   - Leave email confirmations OFF for v1 (matches `enable_confirmations=false`).
+
+5. **Secrets** (only needed when enabling the dormant integrations later):
+
+   ```bash
+   npx supabase secrets set PAYMENT_PROVIDER=simulated
+   # Later, per Runbook §8.4 / §8.7:
+   # npx supabase secrets set RAZORPAY_ENABLED=1 RAZORPAY_WEBHOOK_SECRET=whsec_...
+   # npx supabase secrets set NOTIFICATIONS_ENABLED=1 EDGE_SHARED_SECRET=...
+   # SQL: alter database postgres set app.edge_url='https://<REF>.supabase.co';
+   #      alter database postgres set app.edge_secret='<EDGE_SHARED_SECRET>';
+   ```
+
+### B. Vercel project
+
+1. **Import the repo** at vercel.com → Add New → Project → your Git repo.
+2. **Root Directory: `apps/spa`** (required — the `/api/menu/[slug]` edge
+   function and `vercel.json` live there). Keep "Include source files outside
+   of the Root Directory" enabled (default) so the workspace packages resolve.
+   `apps/spa/vercel.json` already carries the correct monorepo commands
+   (`installCommand: cd ../.. && npm ci`, build via the root workspace
+   scripts) and the SPA rewrites + immutable asset headers — no overrides
+   needed in the UI.
+3. **Environment variables** (Project → Settings → Environment Variables,
+   scope: Production + Preview):
+
+   | Name | Value |
+   |---|---|
+   | `VITE_SUPABASE_URL` | `https://<REF>.supabase.co` |
+   | `VITE_SUPABASE_ANON_KEY` | anon key from Settings → API |
+   | `VITE_APP_ENV` | `production` |
+   | `VITE_SENTRY_DSN` | (optional) your Sentry DSN |
+
+   **Do NOT set `VITE_PUBLIC_MENU_BASE_URL`** — unset means the storefront
+   uses the `/api/menu/:slug` edge proxy, which is what turns on the CDN
+   stale-while-revalidate cache (Plan §4.1). The proxy itself reads the same
+   `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` vars at the edge.
+4. **Deploy** — first build takes ~2 min. Custom domain: Project → Settings →
+   Domains (then update the Supabase Site URL from step A4 to match).
+
+### C. Post-deploy verification (10 minutes)
+
+```bash
+# 1. Menu edge cache serves and carries SWR headers:
+curl -sI https://<your-domain>/api/menu/<some-slug> | grep -i cache-control
+#    expect: public, max-age=60, s-maxage=300, stale-while-revalidate=86400
+```
+
+1. `/signup` → create a real store → lands on the dashboard.
+2. `/qr` → download the poster QR → scan with a phone → `/order/<slug>` menu
+   loads → place a CASH order → receipt shows an `FC-1001` number.
+3. Owner console → Live Orders: the order is in **New** within ~2 s (realtime).
+   Tap through Start preparing → Mark ready → Complete.
+4. New Order → tap two products → Save → Dashboard revenue updates instantly.
+5. Settings → set your UPI VPA → storefront checkout now offers "Pay via UPI".
+6. Supabase Dashboard → Database → check `cron.job` lists
+   `virundhu_keepalive` + `virundhu_refresh_metrics` + idempotency sweep.
+
+### D. Ongoing
+
+- **CI deploys**: `.github/workflows/db-deploy.yml` pushes migrations +
+  functions on merge to `main` once `SUPABASE_ACCESS_TOKEN` /
+  `SUPABASE_PROJECT_REF` secrets are set in GitHub; Vercel auto-deploys on
+  push. Until then, repeat A2–A3 manually after schema changes.
+- **Monitoring** (Runbook §3): wire the Sentry DSN, add Better Stack HTTP
+  monitors on `/login`, `/order/<slug>`, `/api/menu/<slug>`.
+- **Free-tier note**: the `pg_cron` keepalive defeats the 7-day pause, but
+  upgrade Supabase to Pro (~$25/mo) at ~50 active stores for backups + no
+  pause (Plan §C scaling roadmap).
+- **Rollback**: Vercel → Deployments → Promote previous build. DB: follow the
+  `-- ROLLBACK:` block in the offending migration (Runbook §7).

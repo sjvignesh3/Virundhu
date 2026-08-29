@@ -1,8 +1,8 @@
 /**
- * Wire types — the JSON shape of every entity as it crosses the API boundary.
+ * Wire types â€” the JSON shape of every entity as it crosses the API boundary.
  *
  * Rules:
- * - Money is `number` in INR rupees (integers preferred; Decimal → number
+ * - Money is `number` in INR rupees (integers preferred; Decimal â†’ number
  *   conversion happens in the API serializer).
  * - Timestamps are ISO 8601 strings.
  * - IDs are UUID strings.
@@ -20,7 +20,7 @@ import type {
   StoreRole,
   StoreStatus,
   Unit,
-} from "./enums";
+} from "./enums.ts";
 
 export type ID = string;
 export type ISODateString = string;

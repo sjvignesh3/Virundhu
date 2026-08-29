@@ -15,6 +15,9 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": false,
     "noEmit": true,
+    // The path aliases point at @virundhu/shared SOURCE, whose relative
+    // imports carry .ts extensions (required by the Deno edge runtime).
+    "allowImportingTsExtensions": true,
     "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"],
     "baseUrl": ".",
     "paths": {

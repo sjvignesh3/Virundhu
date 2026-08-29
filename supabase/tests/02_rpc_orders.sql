@@ -66,17 +66,17 @@ select is(
   'first order number is FC-1001 (legacy format, no daily reset)'
 );
 
--- 4. Legal transition NEW -> ACCEPTED.
+-- 4. Legal transition NEW -> PREPARING (ACCEPTED retired in Stage 9.1).
 select isnt(
   (select id from public.orders_advance_status(
     (select id from public.orders where store_id = 'cccc3333-3333-3333-3333-333333333333' limit 1),
-    'ACCEPTED'
+    'PREPARING'
   ))::text,
   null,
-  'NEW -> ACCEPTED is allowed'
+  'NEW -> PREPARING is allowed'
 );
 
--- 5. Illegal transition ACCEPTED -> COMPLETED must throw.
+-- 5. Illegal transition PREPARING -> COMPLETED must throw.
 select throws_ok(
   format(
     $$ select public.orders_advance_status(%L::uuid, 'COMPLETED'::public.order_status) $$,
@@ -84,7 +84,7 @@ select throws_ok(
   ),
   '22023',
   null,
-  'ACCEPTED -> COMPLETED is blocked'
+  'PREPARING -> COMPLETED is blocked'
 );
 
 -- 6. Empty items rejected.

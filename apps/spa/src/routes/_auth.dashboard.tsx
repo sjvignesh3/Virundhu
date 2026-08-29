@@ -9,6 +9,7 @@ import {
   storesRepo,
 } from "@virundhu/client";
 import { useActiveStoreId } from "@/lib/useActiveStoreId";
+import { useOrdersRealtime } from "@/lib/useOrdersRealtime";
 import { formatCurrency, formatAgo } from "@/lib/format";
 import {
   IconRupee,
@@ -31,9 +32,15 @@ function DashboardPage() {
 }
 
 function DashboardInner({ storeId }: { storeId: string }) {
+  // Realtime channel keeps the numbers live (route-scoped — one channel per
+  // owner tab); the interval is the safety net if the socket drops.
+  useOrdersRealtime(storeId);
   const q = useQuery({
     queryKey: dashboardKeys.summary(storeId),
     queryFn: () => dashboardRepo.summary(storeId, "today"),
+    staleTime: 0,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
   const store = useQuery({
     queryKey: storeKeys.detail(storeId),
@@ -68,8 +75,8 @@ function DashboardInner({ storeId }: { storeId: string }) {
           <Link to="/orders/live" className="btn btn-outline">
             <IconReceipt /> Live Orders
           </Link>
-          <Link to="/products" className="btn btn-primary">
-            + Add Product
+          <Link to="/orders/new" className="btn btn-primary">
+            + New Order
           </Link>
         </div>
       </div>

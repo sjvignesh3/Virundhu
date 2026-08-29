@@ -12,7 +12,6 @@ import type { PublicMenuProduct, PublicMenuStore } from "@virundhu/client";
 import type { ActivePaymentMethod } from "@virundhu/shared";
 import { cartStore, useCart, cartSubtotal, cartCount } from "@/lib/cart";
 import { formatCurrency } from "@/lib/format";
-import { transformImageUrl } from "@/lib/image";
 import { buildUpiIntentUrl } from "@/lib/upi";
 import { cn } from "@/lib/cn";
 
@@ -55,7 +54,6 @@ function PublicMenuPage() {
   const { store, categories } = q.data;
   const showTamil = store.settings.showTamilNames;
   const acceptOrders = store.settings.acceptOrders && store.status === "OPEN";
-  const heroSrc = transformImageUrl(store.imageUrl, { width: 800, quality: 80 });
   const prepMins = store.settings.estimatedPreparationMinutes;
 
   function scrollToCat(id: string | null) {
@@ -66,18 +64,9 @@ function PublicMenuPage() {
 
   return (
     <div className="min-h-full pb-28">
-      {/* Hero */}
+      {/* Hero — deliberately image-free: text renders instantly on 3G and
+          there is no layout shift while a photo loads. */}
       <header className="relative overflow-hidden border-b border-neutral-200 bg-gradient-to-br from-brand-soft to-neutral-50">
-        {heroSrc ? (
-          <img
-            src={heroSrc}
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover opacity-25"
-            loading="eager"
-            decoding="async"
-            fetchPriority="high"
-          />
-        ) : null}
         <div className="relative max-w-2xl mx-auto px-4 py-8 md:py-10">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -213,7 +202,6 @@ function ProductRow({
   const line = useCart((s) => s.lines.find((l) => l.productId === product.id));
   const qty = line?.quantity ?? 0;
   const add = cartStore.getState().add;
-  const thumb = transformImageUrl(product.imageUrl, { width: 200 });
   const cartLine = {
     productId: product.id,
     name: product.name,
@@ -223,19 +211,6 @@ function ProductRow({
 
   return (
     <div className={cn("card p-3.5 flex items-center gap-4", !product.isAvailable && "opacity-50")}>
-      <div className="w-16 h-16 rounded-xl bg-brand-soft overflow-hidden flex-shrink-0">
-        {thumb ? (
-          <img
-            src={thumb}
-            alt=""
-            width={64}
-            height={64}
-            className="w-full h-full object-cover"
-            loading="lazy"
-            decoding="async"
-          />
-        ) : null}
-      </div>
       <div className="flex-1 min-w-0">
         <div className="font-semibold">{product.name}</div>
         {showTamil && product.tamilName ? (

@@ -1,19 +1,19 @@
 /**
- * Notification contract — shared by the client (for optimistic copy), the
+ * Notification contract â€” shared by the client (for optimistic copy), the
  * `notify-order-transition` Edge Function (for dispatch), and tests.
  *
  * Provider-agnostic by design: the Edge Function selects a concrete
- * dispatcher (log-only stub in Phase 5a → WhatsApp Cloud API in Phase 5b)
+ * dispatcher (log-only stub in Phase 5a â†’ WhatsApp Cloud API in Phase 5b)
  * behind this interface, so the fan-out call site never changes.
  *
  * Dependency-free (no Node, no Deno, no React) so it is importable everywhere.
  */
 
-import type { OrderStatus } from "./enums";
-import { canTransition } from "./transitions";
+import type { OrderStatus } from "./enums.ts";
+import { canTransition } from "./transitions.ts";
 
 /**
- * The customer-facing transitions worth a push. NEW/ACCEPTED→PREPARING is
+ * The customer-facing transitions worth a push. NEW/ACCEPTEDâ†’PREPARING is
  * kitchen-internal and intentionally NOT notified to avoid message spam and
  * to protect the free-tier WhatsApp/message budget.
  */
@@ -41,7 +41,7 @@ export interface NotificationDispatcher {
 
 /**
  * Maps a target order status to a notification kind. Returns `null` for
- * statuses we deliberately do not notify on (NEW, PREPARING) — the caller
+ * statuses we deliberately do not notify on (NEW, PREPARING) â€” the caller
  * skips dispatch in that case.
  */
 export function notificationKindFor(to: OrderStatus): NotificationKind | null {
@@ -62,7 +62,7 @@ export function notificationKindFor(to: OrderStatus): NotificationKind | null {
 /**
  * Guard reused by the Edge Function: a fan-out request is only honoured when
  * the transition is legal AND maps to a notifiable kind. Reuses the SAME
- * state machine the client and DB use — no drift possible.
+ * state machine the client and DB use â€” no drift possible.
  */
 export function shouldNotify(
   from: OrderStatus,
@@ -102,7 +102,7 @@ export function renderNotificationText(
 
 /**
  * Log-only dispatcher (Phase 5a). Safe default when no messaging provider is
- * configured — keeps the fan-out path exercisable in local dev and CI without
+ * configured â€” keeps the fan-out path exercisable in local dev and CI without
  * external secrets or invocation cost.
  */
 export class LogNotificationDispatcher implements NotificationDispatcher {
