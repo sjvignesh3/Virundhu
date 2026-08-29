@@ -58,6 +58,14 @@ enabled = false
 
 [functions.auth-signup]
 verify_jwt = false
+import_map = "./functions/auth-signup/deno.json"
+
+[functions.notify-order-transition]
+verify_jwt = false
+import_map = "./functions/notify-order-transition/deno.json"
+
+[functions.admin-user-import]
+import_map = "./functions/admin-user-import/deno.json"
 
 # ───────────────────────────────────────────────────────────────────────────
 # Stage 7 (2026-09-01): Razorpay + WhatsApp deferred post-launch. The Edge
