@@ -46,7 +46,7 @@ begin
     raise exception 'order not found' using errcode = '22023';
   end if;
 
-  if not auth.has_store(v_order.store_id) then
+  if not public.has_store(v_order.store_id) then
     raise exception 'forbidden' using errcode = '42501';
   end if;
 
@@ -101,7 +101,7 @@ begin
     raise exception 'order not found' using errcode = '22023';
   end if;
 
-  if not auth.has_store(v_order.store_id) then
+  if not public.has_store(v_order.store_id) then
     raise exception 'forbidden' using errcode = '42501';
   end if;
 

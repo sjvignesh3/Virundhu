@@ -36,7 +36,7 @@ declare
   v_line_total  numeric(12,2);
 begin
   ----------------------------------------------------------------- validation
-  if not auth.has_store(p_store_id) then
+  if not public.has_store(p_store_id) then
     raise exception 'forbidden' using errcode = '42501';
   end if;
 

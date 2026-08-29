@@ -2,13 +2,25 @@
 -- 20260901000300_helpers.sql
 -- Purpose : cross-cutting helper functions used by policies, RPCs, and triggers.
 -- These MUST be created before any table that references them in a policy.
+--
+-- NOTE ON SCHEMA PLACEMENT
+-- ─────────────────────────
+-- Supabase's local Docker runner executes migrations as the `postgres` role,
+-- which does NOT have CREATE privilege on the `auth` schema (that belongs to
+-- `supabase_admin`). Our three JWT helpers therefore live in `public` and
+-- call the built-in `auth.jwt()` / `auth.uid()` functions (which remain in
+-- the Supabase-managed `auth` schema and are always accessible).
+--
+-- The old `auth.jwt_store_ids`, `auth.jwt_role`, `auth.has_store` names are
+-- replaced by `public.jwt_store_ids`, `public.jwt_role`, `public.has_store`
+-- throughout every migration and RLS policy.
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
 -- JWT accessors. Wrapped as STABLE functions so the planner can cache them
 -- per-query, and so that policy expressions stay concise.
 -- ---------------------------------------------------------------------------
-create or replace function auth.jwt_store_ids()
+create or replace function public.jwt_store_ids()
   returns uuid[]
   language sql
   stable
@@ -26,13 +38,20 @@ as $$
   );
 $$;
 
-comment on function auth.jwt_store_ids is
+comment on function public.jwt_store_ids is
   'Returns the store_ids claim from the caller''s JWT app_metadata as uuid[].';
 
-create or replace function auth.jwt_role()
+-- Grant to both roles so RLS policies (which run as the querying role) can
+-- call it; SECURITY DEFINER means the function always executes as its owner.
+grant execute on function public.jwt_store_ids() to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+create or replace function public.jwt_role()
   returns text
   language sql
   stable
+  security definer
+  set search_path = public, pg_temp
 as $$
   select nullif(
     coalesce(auth.jwt() -> 'app_metadata' ->> 'role', ''),
@@ -40,19 +59,26 @@ as $$
   );
 $$;
 
-comment on function auth.jwt_role is
+comment on function public.jwt_role is
   'Returns the role claim from the caller''s JWT app_metadata (OWNER|STAFF).';
 
-create or replace function auth.has_store(p_store_id uuid)
+grant execute on function public.jwt_role() to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+create or replace function public.has_store(p_store_id uuid)
   returns boolean
   language sql
   stable
+  security definer
+  set search_path = public, pg_temp
 as $$
-  select p_store_id = any(auth.jwt_store_ids());
+  select p_store_id = any(public.jwt_store_ids());
 $$;
 
-comment on function auth.has_store is
+comment on function public.has_store is
   'True when the caller''s JWT grants access to the given store_id.';
+
+grant execute on function public.has_store(uuid) to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- updated_at maintenance. One trigger function reused across every table.

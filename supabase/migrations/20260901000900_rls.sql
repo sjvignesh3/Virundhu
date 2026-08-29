@@ -14,13 +14,13 @@ alter table public.stores force  row level security;
 drop policy if exists stores_select_own on public.stores;
 create policy stores_select_own on public.stores
   for select to authenticated
-  using (auth.has_store(id));
+  using (public.has_store(id));
 
 drop policy if exists stores_update_owner on public.stores;
 create policy stores_update_owner on public.stores
   for update to authenticated
-  using      (auth.has_store(id) and auth.jwt_role() = 'OWNER')
-  with check (auth.has_store(id) and auth.jwt_role() = 'OWNER');
+  using      (public.has_store(id) and public.jwt_role() = 'OWNER')
+  with check (public.has_store(id) and public.jwt_role() = 'OWNER');
 
 -- No INSERT/DELETE policy: creation happens in auth-signup Edge Function
 -- running under service_role; deletion is disallowed at the app layer.
@@ -34,13 +34,13 @@ alter table public.store_members force  row level security;
 drop policy if exists members_select_own_store on public.store_members;
 create policy members_select_own_store on public.store_members
   for select to authenticated
-  using (auth.has_store(store_id));
+  using (public.has_store(store_id));
 
 drop policy if exists members_write_owner on public.store_members;
 create policy members_write_owner on public.store_members
   for all to authenticated
-  using      (auth.has_store(store_id) and auth.jwt_role() = 'OWNER')
-  with check (auth.has_store(store_id) and auth.jwt_role() = 'OWNER');
+  using      (public.has_store(store_id) and public.jwt_role() = 'OWNER')
+  with check (public.has_store(store_id) and public.jwt_role() = 'OWNER');
 
 -- ---------------------------------------------------------------------------
 -- CATEGORIES
@@ -51,23 +51,23 @@ alter table public.categories force  row level security;
 drop policy if exists categories_select on public.categories;
 create policy categories_select on public.categories
   for select to authenticated
-  using (auth.has_store(store_id));
+  using (public.has_store(store_id));
 
 drop policy if exists categories_insert on public.categories;
 create policy categories_insert on public.categories
   for insert to authenticated
-  with check (auth.has_store(store_id));
+  with check (public.has_store(store_id));
 
 drop policy if exists categories_update on public.categories;
 create policy categories_update on public.categories
   for update to authenticated
-  using      (auth.has_store(store_id))
-  with check (auth.has_store(store_id));
+  using      (public.has_store(store_id))
+  with check (public.has_store(store_id));
 
 drop policy if exists categories_delete on public.categories;
 create policy categories_delete on public.categories
   for delete to authenticated
-  using (auth.has_store(store_id));
+  using (public.has_store(store_id));
 
 -- ---------------------------------------------------------------------------
 -- PRODUCTS
@@ -78,23 +78,23 @@ alter table public.products force  row level security;
 drop policy if exists products_select on public.products;
 create policy products_select on public.products
   for select to authenticated
-  using (auth.has_store(store_id));
+  using (public.has_store(store_id));
 
 drop policy if exists products_insert on public.products;
 create policy products_insert on public.products
   for insert to authenticated
-  with check (auth.has_store(store_id));
+  with check (public.has_store(store_id));
 
 drop policy if exists products_update on public.products;
 create policy products_update on public.products
   for update to authenticated
-  using      (auth.has_store(store_id))
-  with check (auth.has_store(store_id));
+  using      (public.has_store(store_id))
+  with check (public.has_store(store_id));
 
 drop policy if exists products_delete on public.products;
 create policy products_delete on public.products
   for delete to authenticated
-  using (auth.has_store(store_id));
+  using (public.has_store(store_id));
 
 -- ---------------------------------------------------------------------------
 -- ORDERS + ORDER_ITEMS
@@ -106,7 +106,7 @@ alter table public.orders force  row level security;
 drop policy if exists orders_select on public.orders;
 create policy orders_select on public.orders
   for select to authenticated
-  using (auth.has_store(store_id));
+  using (public.has_store(store_id));
 
 -- No insert/update/delete policies → PostgREST returns 401 for direct writes.
 -- All mutations go through SECURITY DEFINER RPCs.
@@ -121,7 +121,7 @@ create policy order_items_select on public.order_items
     exists (
       select 1 from public.orders o
       where o.id = order_items.order_id
-        and auth.has_store(o.store_id)
+        and public.has_store(o.store_id)
     )
   );
 
@@ -134,13 +134,13 @@ alter table public.printers force  row level security;
 drop policy if exists printers_select on public.printers;
 create policy printers_select on public.printers
   for select to authenticated
-  using (auth.has_store(store_id));
+  using (public.has_store(store_id));
 
 drop policy if exists printers_write on public.printers;
 create policy printers_write on public.printers
   for all to authenticated
-  using      (auth.has_store(store_id))
-  with check (auth.has_store(store_id));
+  using      (public.has_store(store_id))
+  with check (public.has_store(store_id));
 
 -- ---------------------------------------------------------------------------
 -- AUDIT_LOG — read own tenant only; no writes from application roles.
@@ -151,7 +151,7 @@ alter table public.audit_log force  row level security;
 drop policy if exists audit_select on public.audit_log;
 create policy audit_select on public.audit_log
   for select to authenticated
-  using (auth.has_store(store_id));
+  using (public.has_store(store_id));
 
 -- ---------------------------------------------------------------------------
 -- ORDER_SEQUENCES — no direct access; managed by next_order_number().

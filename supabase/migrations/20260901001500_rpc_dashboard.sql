@@ -21,7 +21,7 @@ declare
   v_avg        numeric(14,2);
   v_top        jsonb;
 begin
-  if not auth.has_store(p_store_id) then
+  if not public.has_store(p_store_id) then
     raise exception 'forbidden' using errcode = '42501';
   end if;
 
@@ -104,7 +104,7 @@ as $$
     o.total,
     (select count(*)::int from public.order_items i where i.order_id = o.id) as items
   from public.orders o
-  where auth.has_store(o.store_id)
+  where public.has_store(o.store_id)
     and o.store_id = p_store_id
     and o.placed_at >= p_from::timestamptz
     and o.placed_at <  (p_to + 1)::timestamptz
