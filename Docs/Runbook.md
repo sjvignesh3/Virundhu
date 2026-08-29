@@ -1,6 +1,7 @@
 # Virundhu Ops Runbook
 
 _Stage 6 · Hardening, QA, Cutover & Rollback deliverable._
+_Amended Stage 7 (2026-09-01) — Razorpay + WhatsApp deferred; §8.4 and §8.7 marked BOILERPLATE._
 
 This is the single source of truth for on-call. Every incident-class
 scenario below has a **detection**, **diagnosis**, and **mitigation**
@@ -8,17 +9,23 @@ section, plus a link to the code that owns the invariant.
 
 **Do not paraphrase this document in Slack — link to the section.**
 
+> **Stage 7 — v1 scope reminder.** Payments are **CASH + UPI-intent** only
+> (no gateway); notifications are **out-of-band** (no WhatsApp). The
+> Razorpay Edge Function and the notification dispatcher return `501` in
+> production unless explicitly re-enabled via the env flags called out in
+> §8.4 and §8.7. Do not treat 501s from those endpoints as incidents.
+
 ---
 
 ## 1. Contacts & Ownership
 
-| Role                | Primary            | Backup             |
-| ------------------- | ------------------ | ------------------ |
-| DB / RLS            | Backend lead       | Platform           |
-| Edge Functions      | Backend lead       | Backend lead       |
-| SPA / Vercel        | Frontend lead      | Backend lead       |
-| Payments (Razorpay) | Finance ops        | Backend lead       |
-| WhatsApp / Twilio   | Platform           | Frontend lead      |
+| Role                    | Primary            | Backup             |
+| ----------------------- | ------------------ | ------------------ |
+| DB / RLS                | Backend lead       | Platform           |
+| Edge Functions          | Backend lead       | Backend lead       |
+| SPA / Vercel            | Frontend lead      | Backend lead       |
+| Payments (Razorpay)     | Finance ops        | Backend lead       | _boilerplate — see §8.4_ |
+| WhatsApp / Twilio       | Platform           | Frontend lead      | _boilerplate — see §8.7_ |
 
 Escalation path: on-call → primary owner → engineering manager → CTO.
 
@@ -47,7 +54,7 @@ DB: Supabase project alerts (built-in) forward to `#virundhu-alerts`.
 | ---------------------------------------------- | ------------------------ | -------- | ------------------- | ---------- |
 | SPA JS error rate                              | Sentry `virundhu-spa`    | P2       | > 1% sessions / 10m | §8.1       |
 | Edge Function 5xx                              | Sentry `virundhu-edge`   | P1       | > 5 / 5m            | §8.2       |
-| `razorpay-webhook` 4xx (signature failure)     | Sentry `virundhu-edge`   | P1       | > 3 / 15m           | §8.4       |
+| `razorpay-webhook` 4xx (signature failure)     | Sentry `virundhu-edge`   | ⛔ off    | boilerplate — 501   | §8.4       |
 | `pg_stat_activity` long-running query          | Supabase alert           | P2       | > 30s               | §8.5       |
 | Postgres CPU                                   | Supabase alert           | P1       | > 80% for 5m        | §8.5       |
 | Auth signups                                   | Supabase alert           | P3       | drops to 0 for 24h  | §8.1       |
@@ -278,23 +285,47 @@ Common failures:
   the `Cache-Control` header stripped. Verify handler still returns
   `public, s-maxage=60, stale-while-revalidate=300`.
 
-### 8.4 Payments (Razorpay)
+### 8.4 Payments — Razorpay (BOILERPLATE, deferred)
+
+> **Stage 7 status**: Razorpay is **not wired**. The Edge Function returns
+> `501 NOT_IMPLEMENTED` unless `RAZORPAY_ENABLED=1` is set on function
+> secrets, and its entry in `supabase/config.toml` is commented out so
+> `supabase deploy` skips it. The code, HMAC verifier, `mark_payment_paid`
+> RPC, and `idempotency_keys` table are retained so re-enabling is a
+> config flip — see the re-enable checklist at the bottom of this section.
 
 **Owner**: Finance ops (business) · Backend lead (code)
 **Code**: `supabase/functions/razorpay-webhook/`,
 `supabase/functions/_shared/razorpay.ts`,
-`supabase/migrations/20260901002300_stage5_payments_notify.sql`
+`supabase/migrations/20260901002300_stage5_payments_notify.sql`,
+`supabase/migrations/20260901002500_stage7_upi_cash_only.sql` (kill-switch).
 
+**v1 payment flow (Stage 7):**
+- Customer picks CASH or UPI in the CheckoutSheet.
+- If UPI, the SPA launches `upi://pay?pa=<vpa>...` (see `apps/spa/src/lib/upi.ts`).
+- Vendor confirms receipt in their UPI app and marks the order PAID by
+  advancing status through the owner console. There is **no automated
+  reconciliation** — this is acceptable for point-of-sale pickup.
+
+**Re-enable checklist (post-launch):**
+1. `supabase secrets set RAZORPAY_ENABLED=1 RAZORPAY_WEBHOOK_SECRET=whsec_...`
+2. Uncomment `[functions.razorpay-webhook]` in `supabase/config.toml`.
+3. Re-deploy: `supabase functions deploy razorpay-webhook`.
+4. Point the Razorpay dashboard webhook at
+   `https://<project>.functions.supabase.co/razorpay-webhook`.
+5. Verify by triggering a test event from the Razorpay dashboard —
+   Sentry should show a single `mark_payment_paid` success, no
+   `INVALID_SIGNATURE`.
+
+**Legacy troubleshooting (once re-enabled):**
 - Signature failures (`INVALID_SIGNATURE` in Sentry) — 99% of the time
   the webhook secret drifted after a Razorpay dashboard rotation.
   Update `RAZORPAY_WEBHOOK_SECRET` on the prod function and redeploy.
 - Duplicate captures — the `idempotency_keys` table blocks these at the
   DB layer via `mark_payment_paid`. If you see two `orders.payment_status
-  = 'PAID'` transitions for the same order in audit, that's a bug —
-  file a P1.
-- Refunds are **out of scope** for Stage 6 — handle manually via
-  Razorpay dashboard + a follow-up SQL to set
-  `orders.payment_status = 'REFUNDED'`.
+  = 'PAID'` transitions for the same order in audit, that's a bug — P1.
+- Refunds are out of scope — handle manually via the Razorpay dashboard
+  and a follow-up SQL: `update public.orders set payment_status='REFUNDED' where id=...`.
 
 ### 8.5 Database (RLS, perf, materialized views)
 
@@ -358,21 +389,44 @@ If a job is inactive, re-enable:
 update extensions.cron.job set active = true where jobname = '<name>';
 ```
 
-### 8.7 Notifications (WhatsApp / email fan-out)
+### 8.7 Notifications — WhatsApp / email fan-out (BOILERPLATE, deferred)
+
+> **Stage 7 status**: WhatsApp Cloud API is **not wired**. The
+> `notify-order-transition` Edge Function returns `501` unless
+> `NOTIFICATIONS_ENABLED=1` is set, its entry in `config.toml` is
+> commented out, and the DB no longer calls `notify_order_transition`
+> from `orders_advance_status` / `orders_cancel`. The dispatcher
+> abstraction, `pg_net` helper, and Deno tests remain in the tree.
 
 **Owner**: Backend lead
 **Code**: `supabase/functions/notify-order-transition/`,
-`supabase/migrations/20260901002300_stage5_payments_notify.sql`
+`supabase/migrations/20260901002300_stage5_payments_notify.sql`,
+`supabase/migrations/20260901002500_stage7_upi_cash_only.sql` (removes fan-out call).
 
+**v1 flow (Stage 7)**: order status changes are visible in the SPA's
+realtime channel; customers refresh the receipt page manually. Vendors
+notify customers out-of-band (verbal at pickup counter).
+
+**Re-enable checklist (post-launch):**
+1. `supabase secrets set NOTIFICATIONS_ENABLED=1 EDGE_SHARED_SECRET=...`
+2. Uncomment `[functions.notify-order-transition]` in `config.toml`.
+3. Re-add the fan-out call to `orders_advance_status` / `orders_cancel`
+   (see comments in migration `20260901002500`):
+   ```sql
+   perform public.notify_order_transition(p_order_id, v_from, p_next);
+   ```
+4. Set the DB GUCs: `alter database postgres set app.edge_url = '<url>';`
+   and `... app.edge_secret = '<secret>';`.
+5. Swap `LogNotificationDispatcher` for a WhatsApp Cloud API dispatcher
+   in `packages/shared/src/notifications.ts` (call site unchanged).
+6. Redeploy: `supabase functions deploy notify-order-transition`.
+
+**Legacy troubleshooting (once re-enabled):**
 - The DB fan-out is `pg_net`-based and best-effort — **never blocks the
   order write**. If notifications stop, orders still work.
-- Check `app.edge_url` and `app.edge_secret` GUCs are set at the prod
-  project (Settings → Database → Config). If unset, the fan-out is a
-  silent no-op (guarded in the trigger).
-- To manually retry a fan-out for a specific order:
-  ```sql
-  select public.notify_order_transition('<order-id>'::uuid, 'PLACED', 'ACCEPTED');
-  ```
+- Check `app.edge_url` and `app.edge_secret` GUCs are set. If unset,
+  the fan-out is a silent no-op (guarded in the helper).
+- Manual retry: `select public.notify_order_transition('<order-id>'::uuid, 'PLACED', 'ACCEPTED');`
 
 ### 8.8 Realtime channels
 

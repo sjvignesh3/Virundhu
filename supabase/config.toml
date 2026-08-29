@@ -30,7 +30,7 @@ enabled = true
 enabled = true
 port = 54323
 
-[inbucket]
+[local_smtp]
 enabled = true
 port = 54324
 
@@ -58,13 +58,21 @@ enabled = false
 [functions.auth-signup]
 verify_jwt = false
 
-[functions.reports-sales-csv]
-verify_jwt = true
+# ───────────────────────────────────────────────────────────────────────────
+# Stage 7 (2026-09-01): Razorpay + WhatsApp deferred post-launch. The Edge
+# Functions below remain in the tree as BOILERPLATE — they compile and their
+# unit tests still run — but they are not deployed and the DB no longer
+# invokes them. To re-enable, uncomment the blocks and:
+#   1. Set the RAZORPAY_WEBHOOK_SECRET / EDGE_SHARED_SECRET / app.edge_url
+#      GUCs (see Runbook §8.4 and §8.7).
+#   2. Restore the `perform public.notify_order_transition(...)` calls in
+#      the `orders_advance_status` / `orders_cancel` RPCs
+#      (migration 20260901002500).
+#   3. Redeploy: `supabase functions deploy notify-order-transition razorpay-webhook`.
+# ───────────────────────────────────────────────────────────────────────────
 
-# Called internally by pg_net (bearer = app.edge_secret GUC); no Supabase JWT.
-[functions.notify-order-transition]
-verify_jwt = false
+# [functions.notify-order-transition]
+# verify_jwt = false
 
-# Called by Razorpay; authenticated by the x-razorpay-signature HMAC, not a JWT.
-[functions.razorpay-webhook]
-verify_jwt = false
+# [functions.razorpay-webhook]
+# verify_jwt = false

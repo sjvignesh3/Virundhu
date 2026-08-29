@@ -52,4 +52,5 @@ export const reportsKeys = {
 export const publicMenuKeys = {
     all: ["public-menu"],
     bySlug: (slug) => [...publicMenuKeys.all, "by-slug", slug],
+    order: (slug, orderNumber) => [...publicMenuKeys.all, "order", slug, orderNumber],
 };
